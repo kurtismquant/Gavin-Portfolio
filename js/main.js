@@ -14,17 +14,33 @@ const companies = [
   },
 ];
 
-const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-
 document.addEventListener("DOMContentLoaded", () => {
+  gsap.registerPlugin(ScrollTrigger, MorphSVGPlugin, DrawSVGPlugin);
+  initSignatureDrawState();
+
   renderCompanies();
   syncWorkLength();
+  initEasedSnapScroll();
   initHeader();
   initActiveNav();
   initReveals();
-  initMorphingSignature();
+  initSignatureScene();
   initContactForm();
   initVideoDialog();
+
+  const mm = gsap.matchMedia();
+  mm.add("(prefers-reduced-motion: no-preference)", () => {
+    initHeroDrawTimeline();
+    initMorphScrollTriggers();
+  });
+  mm.add("(prefers-reduced-motion: reduce)", () => {
+    gsap.set(["#draw-gavin", "#draw-i-dot", "#signature-art",
+              ".hero .eyebrow", ".hero h1", ".work-cta"], { opacity: 1, y: 0 });
+    gsap.set("#draw-gavin", { drawSVG: "100%" });
+    const p = document.querySelector("#path1");
+    const m = document.querySelector("#morph-path");
+    if (p && m) m.setAttribute("d", p.getAttribute("d"));
+  });
 });
 
 function renderCompanies() {
@@ -54,7 +70,7 @@ function renderCompanies() {
 
     const meta = document.createElement("p");
     meta.className = "video-meta";
-    meta.textContent = `${company.type} \u00b7 ${company.views}`;
+    meta.textContent = `${company.type} · ${company.views}`;
 
     const grid = document.createElement("div");
     grid.className = "video-grid";
@@ -76,6 +92,169 @@ function syncWorkLength() {
   if (!workSection) return;
 
   workSection.style.setProperty("--work-min-height", `${Math.max(1, companies.length) * 100}svh`);
+}
+
+function initEasedSnapScroll() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const panelSelector = ".hero, .company-panel, .contact";
+  const ignoredSelector = "dialog, input, textarea, select, [contenteditable='true']";
+  let isAnimating = false;
+  let wheelDelta = 0;
+  let wheelTimer = 0;
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  const getPanels = () => Array.from(document.querySelectorAll(panelSelector));
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+  const maxScrollY = () =>
+    Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+  const getPanelTop = (panel) =>
+    clamp(panel.getBoundingClientRect().top + window.scrollY, 0, maxScrollY());
+
+  const getClosestPanelIndex = () => {
+    const panels = getPanels();
+    const viewportAnchor = window.scrollY + window.innerHeight * 0.45;
+
+    return panels.reduce((closestIndex, panel, index) => {
+      const currentDistance = Math.abs(getPanelTop(panel) - viewportAnchor);
+      const closestDistance = Math.abs(getPanelTop(panels[closestIndex]) - viewportAnchor);
+      return currentDistance < closestDistance ? index : closestIndex;
+    }, 0);
+  };
+
+  const shouldIgnore = (target) => {
+    if (document.querySelector("dialog[open]")) return true;
+    const element = target instanceof Element ? target : null;
+    return Boolean(element?.closest(ignoredSelector));
+  };
+
+  const shouldIgnoreKey = (target) => {
+    const element = target instanceof Element ? target : null;
+    return shouldIgnore(target) || Boolean(element?.closest("button"));
+  };
+
+  const scrollToPanel = (index) => {
+    const panels = getPanels();
+    if (!panels.length) return;
+
+    const targetIndex = clamp(index, 0, panels.length - 1);
+    const startY = window.scrollY;
+    const endY = getPanelTop(panels[targetIndex]);
+    const distance = endY - startY;
+
+    if (Math.abs(distance) < 2) return;
+
+    const duration = clamp(Math.abs(distance) * 0.55, 720, 1120);
+    const startedAt = performance.now();
+    isAnimating = true;
+
+    const tick = (now) => {
+      const progress = clamp((now - startedAt) / duration, 0, 1);
+      const eased = easeOutCubic(progress);
+      window.scrollTo(0, startY + distance * eased);
+
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+        return;
+      }
+
+      window.scrollTo(0, endY);
+      isAnimating = false;
+    };
+
+    requestAnimationFrame(tick);
+  };
+
+  const goToAdjacentPanel = (direction) => {
+    const panels = getPanels();
+    if (!panels.length) return;
+
+    scrollToPanel(getClosestPanelIndex() + direction);
+  };
+
+  window.addEventListener(
+    "wheel",
+    (event) => {
+      if (shouldIgnore(event.target) || event.ctrlKey || event.metaKey) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+      event.preventDefault();
+      if (isAnimating) return;
+
+      wheelDelta += event.deltaY;
+      window.clearTimeout(wheelTimer);
+      wheelTimer = window.setTimeout(() => {
+        wheelDelta = 0;
+      }, 120);
+
+      if (Math.abs(wheelDelta) < 18) return;
+
+      const direction = wheelDelta > 0 ? 1 : -1;
+      wheelDelta = 0;
+      goToAdjacentPanel(direction);
+    },
+    { passive: false }
+  );
+
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (shouldIgnoreKey(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
+
+      const downKeys = ["ArrowDown", "PageDown"];
+      const upKeys = ["ArrowUp", "PageUp"];
+      const isSpace = event.key === " ";
+
+      if (!downKeys.includes(event.key) && !upKeys.includes(event.key) && !isSpace) return;
+
+      event.preventDefault();
+      if (isAnimating) return;
+
+      goToAdjacentPanel(upKeys.includes(event.key) || (isSpace && event.shiftKey) ? -1 : 1);
+    }
+  );
+
+  window.addEventListener(
+    "touchstart",
+    (event) => {
+      const touch = event.changedTouches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    "touchend",
+    (event) => {
+      if (shouldIgnore(event.target) || isAnimating) return;
+
+      const touch = event.changedTouches[0];
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
+
+      if (Math.abs(deltaY) < 56 || Math.abs(deltaY) <= Math.abs(deltaX)) return;
+
+      goToAdjacentPanel(deltaY < 0 ? 1 : -1);
+    },
+    { passive: true }
+  );
+
+  document.addEventListener("click", (event) => {
+    const clicked = event.target instanceof Element ? event.target : null;
+    const link = clicked?.closest('a[href^="#"]');
+    if (!link || shouldIgnore(event.target)) return;
+
+    const target = document.querySelector(link.getAttribute("href"));
+    if (!target?.matches(panelSelector) && !target?.closest(panelSelector)) return;
+
+    event.preventDefault();
+    scrollToPanel(getPanels().findIndex((panel) => panel === target || panel.contains(target)));
+  });
 }
 
 function createVideoCard(company, video) {
@@ -134,30 +313,29 @@ function initHeader() {
 }
 
 function initActiveNav() {
-  const sections = [...document.querySelectorAll("main > section[id]")];
-  const links = [...document.querySelectorAll(".nav-link")];
-  if (!sections.length || !links.length) return;
+  const links = Array.from(document.querySelectorAll(".nav-link"));
+  const sections = ["#about", "#work", "#contact"];
+  if (!links.length) return;
 
-  const updateActiveLink = () => {
-    const current = sections.reduce((active, section) => {
-      const distance = Math.abs(section.getBoundingClientRect().top - window.innerHeight * 0.22);
-      return distance < active.distance ? { id: section.id, distance } : active;
-    }, { id: sections[0].id, distance: Infinity });
+  const setActive = (id) =>
+    links.forEach((l) => l.classList.toggle("is-active", l.getAttribute("href") === id));
 
-    links.forEach((link) => {
-      link.classList.toggle("is-active", link.getAttribute("href") === `#${current.id}`);
+  setActive("#about");
+  sections.forEach((id) => {
+    ScrollTrigger.create({
+      trigger: id,
+      start: "top 35%",
+      end: "bottom 35%",
+      onToggle: (self) => { if (self.isActive) setActive(id); },
     });
-  };
-
-  updateActiveLink();
-  window.addEventListener("scroll", updateActiveLink, { passive: true });
+  });
 }
 
 function initReveals() {
   const panels = [...document.querySelectorAll(".company-panel")];
   if (!panels.length) return;
 
-  if (prefersReducedMotion.matches) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     panels.forEach((panel) => panel.classList.add("is-visible"));
     return;
   }
@@ -174,391 +352,205 @@ function initReveals() {
   panels.forEach((panel) => observer.observe(panel));
 }
 
-async function initMorphingSignature() {
-  const sourcePath = document.querySelector("#path1");
-  const morphPath = document.querySelector("#morph-path");
+function initSignatureScene() {
   const workSection = document.querySelector("#work");
   const contactSection = document.querySelector("#contact");
-  if (!sourcePath || !morphPath || !workSection) return;
+  if (!workSection) return;
 
-  const sourceSegments = parsePathToAbsolute(sourcePath.getAttribute("d"));
-  if (!sourceSegments.length) return;
-
-  const shapeSegments = await Promise.all(
-    companies.map((company) => createCompanyTargetSegments(sourceSegments, company))
-  );
-  const states = [sourceSegments, ...shapeSegments, sourceSegments];
-  const firstCompanyProgress = 1 / Math.max(1, states.length - 1);
-
-  morphPath.setAttribute("d", segmentsToD(sourceSegments));
-
-  let ticking = false;
-
-  const updateSignatureScene = () => {
+  const update = () => {
     const workRect = workSection.getBoundingClientRect();
     const contactRect = contactSection?.getBoundingClientRect();
-    const inWorkScene = workRect.top <= window.innerHeight * 0.58 && workRect.bottom >= window.innerHeight * 0.28;
-    const enteringContact = contactRect ? contactRect.top <= window.innerHeight * 0.72 : false;
+    const keepWorkArtwork =
+      workRect.top <= window.innerHeight * 0.58 &&
+      (!contactRect || contactRect.top > 0);
+    const enteringContact = contactRect
+      ? contactRect.top <= window.innerHeight * 0.72
+      : false;
 
-    document.body.classList.toggle("is-work-scene", inWorkScene && !enteringContact);
-    document.documentElement.style.setProperty("--signature-y", inWorkScene ? "23svh" : "33svh");
-    document.documentElement.style.setProperty("--signature-width", inWorkScene ? "min(34vw, 430px)" : "min(60vw, 820px)");
-    document.documentElement.style.setProperty("--signature-min-width", inWorkScene ? "0px" : "min(76vw, 420px)");
-    document.documentElement.style.setProperty("--signature-opacity", enteringContact ? "0" : "1");
-
-    const progress = clamp(-workRect.top / Math.max(1, workSection.offsetHeight - window.innerHeight), 0, 1);
-    return inWorkScene && workRect.top <= 1 ? Math.max(progress, firstCompanyProgress) : progress;
+    document.body.classList.toggle("is-work-scene", keepWorkArtwork);
+    document.documentElement.style.setProperty(
+      "--signature-y", keepWorkArtwork ? "23svh" : "33svh"
+    );
+    document.documentElement.style.setProperty(
+      "--signature-width", keepWorkArtwork ? "min(34vw, 430px)" : "min(60vw, 820px)"
+    );
+    document.documentElement.style.setProperty(
+      "--signature-min-width", keepWorkArtwork ? "0px" : "min(76vw, 420px)"
+    );
+    document.documentElement.style.setProperty(
+      "--signature-opacity", enteringContact ? "0" : "1"
+    );
   };
 
-  const updateMorph = () => {
-    ticking = false;
-
-    const progress = updateSignatureScene();
-    if (prefersReducedMotion.matches) return;
-
-    const scaled = progress * (states.length - 1);
-    const index = Math.min(states.length - 2, Math.floor(scaled));
-    const localProgress = easeInOutCubic(scaled - index);
-
-    morphPath.setAttribute("d", segmentsToD(interpolateSegments(states[index], states[index + 1], localProgress)));
-  };
-
-  const requestMorph = () => {
-    if (ticking) return;
-    ticking = true;
-    window.requestAnimationFrame(updateMorph);
-  };
-
-  updateMorph();
-  window.addEventListener("scroll", requestMorph, { passive: true });
-  window.addEventListener("resize", requestMorph);
-  prefersReducedMotion.addEventListener("change", requestMorph);
+  update();
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
 }
 
-async function createCompanyTargetSegments(sourceSegments, company) {
-  if (company.shape !== "excited" || !company.image) {
-    return createTargetSegments(sourceSegments, company.shape);
-  }
-
-  try {
-    const response = await fetch(company.image);
-    if (!response.ok) throw new Error(`Unable to load ${company.image}`);
-
-    const svgText = await response.text();
-    const documentSvg = new DOMParser().parseFromString(svgText, "image/svg+xml");
-    const paths = [...documentSvg.querySelectorAll("path")];
-    const targetPath = paths[company.morphPathIndex];
-    if (!targetPath) return createTargetSegments(sourceSegments, "luxe");
-
-    const targetSegments = parsePathToAbsolute(targetPath.getAttribute("d"));
-    const translate = parseTranslate(targetPath.getAttribute("transform"));
-    const translatedSegments = translateSegments(targetSegments, translate.x, translate.y);
-    return createTargetSegmentsFromPath(sourceSegments, translatedSegments);
-  } catch (error) {
-    console.warn(error);
-    return createTargetSegments(sourceSegments, "luxe");
-  }
+function initSignatureDrawState() {
+  gsap.set("#signature-art", { opacity: 1 });
+  gsap.set("#draw-gavin", { opacity: 1, drawSVG: "0%" });
+  gsap.set("#draw-i-dot", { opacity: 0, scale: 0, transformOrigin: "center" });
+  gsap.set(".hero .eyebrow, .hero h1, .work-cta", { opacity: 0, y: 20 });
 }
 
-function parsePathToAbsolute(d) {
+function initHeroDrawTimeline() {
+  initSignatureDrawState();
+
+  const dotStartTime = 2.15;
+  const dotDuration = 0.25;
+
+  const tl = gsap.timeline();
+  tl.to("#draw-gavin", { drawSVG: "100%", duration: 3.2, ease: "power2.inOut" })
+    .fromTo(
+      "#draw-i-dot",
+      { opacity: 0, scale: 0 },
+      { opacity: 1, scale: 1, duration: dotDuration, transformOrigin: "center", ease: "power2.out" },
+      dotStartTime
+    )
+    .to(
+      ".hero .eyebrow, .hero h1, .work-cta",
+      { opacity: 1, y: 0, stagger: 0.18, duration: 0.6, ease: "power2.out" },
+      dotStartTime + dotDuration + 0.05
+    );
+}
+
+async function initMorphScrollTriggers() {
+  const sourcePath = document.querySelector("#path1");
+  const morphPath = document.querySelector("#morph-path");
+  if (!sourcePath || !morphPath) return;
+
+  const signaturePath = sourcePath.getAttribute("d");
+  morphPath.setAttribute("d", signaturePath);
+
+  const targetDByCompany = await Promise.all(
+    companies.map(async (c) => {
+      const res = await fetch(c.image);
+      const text = await res.text();
+      const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+      const path = doc.querySelectorAll("path")[c.morphPathIndex ?? 0];
+      return normalizeExternalSvgPath(doc.documentElement, path);
+    })
+  );
+
+  companies.forEach((_company, i) => {
+    const prevD = i === 0 ? signaturePath : targetDByCompany[i - 1];
+    gsap
+      .timeline({
+        scrollTrigger: {
+          trigger: `#company-${i}`,
+          start: "top 80%",
+          end: "top 20%",
+          scrub: 1,
+        },
+      })
+      .fromTo(
+        "#morph-path",
+        { morphSVG: prevD },
+        { morphSVG: { shape: targetDByCompany[i], shapeIndex: "auto" }, ease: "power3.inOut" }
+      );
+  });
+}
+
+function normalizeExternalSvgPath(svg, path) {
+  if (!svg || !path) return "";
+
+  const d = path.getAttribute("d");
+  const viewBox = parseViewBox(svg.getAttribute("viewBox"));
+  if (!d || !viewBox) return d || "";
+
+  const isDesktop = window.matchMedia("(min-width: 761px)").matches;
+  const targetWidth = isDesktop ? 72 : 48;
+  const targetHeight = isDesktop ? 81 : 54;
+  const target = {
+    x: 112 - targetWidth / 2,
+    y: 124 - targetHeight / 2,
+    width: targetWidth,
+    height: targetHeight,
+  };
+  const scale = Math.min(target.width / viewBox.width, target.height / viewBox.height);
+  const sourceCenter = {
+    x: viewBox.x + viewBox.width / 2,
+    y: viewBox.y + viewBox.height / 2,
+  };
+  const targetCenter = {
+    x: target.x + target.width / 2,
+    y: target.y + target.height / 2,
+  };
+
+  const transformX = (x, relative) => relative ? x * scale : targetCenter.x + (x - sourceCenter.x) * scale;
+  const transformY = (y, relative) => relative ? y * scale : targetCenter.y + (y - sourceCenter.y) * scale;
+
+  return transformPathData(d, transformX, transformY);
+}
+
+function parseViewBox(viewBox) {
+  const values = viewBox?.trim().split(/[\s,]+/).map(Number);
+  if (!values || values.length !== 4 || values.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  return { x: values[0], y: values[1], width: values[2], height: values[3] };
+}
+
+function transformPathData(d, transformX, transformY) {
   const tokens = d.match(/[a-zA-Z]|[-+]?(?:\d*\.)?\d+(?:e[-+]?\d+)?/gi) || [];
-  const segments = [];
+  const output = [];
   let index = 0;
   let command = "";
-  let current = { x: 0, y: 0 };
-  let subpathStart = { x: 0, y: 0 };
 
   const isCommand = (token) => /^[a-zA-Z]$/.test(token);
-  const readNumber = () => Number(tokens[index++]);
-  const hasNumbers = () => index < tokens.length && !isCommand(tokens[index]);
+  const read = () => Number(tokens[index++]);
+  const write = (value) => output.push(Number(value.toFixed(3)).toString());
 
   while (index < tokens.length) {
     if (isCommand(tokens[index])) {
       command = tokens[index++];
+      output.push(command);
     }
 
-    const normalized = command.toLowerCase();
-    const relative = command === normalized;
+    const lower = command.toLowerCase();
+    const relative = command === lower;
 
-    if (normalized === "z") {
-      segments.push({ type: "Z", values: [] });
-      current = { ...subpathStart };
-      command = "";
+    if (lower === "z") continue;
+
+    if (lower === "h") {
+      while (index < tokens.length && !isCommand(tokens[index])) write(transformX(read(), relative));
       continue;
     }
 
-    if (normalized === "m") {
-      while (hasNumbers()) {
-        const x = readNumber();
-        const y = readNumber();
-        current = relative ? { x: current.x + x, y: current.y + y } : { x, y };
-        subpathStart = { ...current };
-        segments.push({ type: "M", values: [current.x, current.y] });
+    if (lower === "v") {
+      while (index < tokens.length && !isCommand(tokens[index])) write(transformY(read(), relative));
+      continue;
+    }
+
+    if (lower === "a") {
+      while (index < tokens.length && !isCommand(tokens[index])) {
+        const rx = read();
+        const ry = read();
+        const rotation = read();
+        const largeArc = read();
+        const sweep = read();
+        const x = read();
+        const y = read();
+        write(transformX(rx, true));
+        write(transformY(ry, true));
+        write(rotation);
+        write(largeArc);
+        write(sweep);
+        write(transformX(x, relative));
+        write(transformY(y, relative));
       }
       continue;
     }
 
-    if (normalized === "c") {
-      while (hasNumbers()) {
-        const x1 = readNumber();
-        const y1 = readNumber();
-        const x2 = readNumber();
-        const y2 = readNumber();
-        const x = readNumber();
-        const y = readNumber();
-        const values = relative
-          ? [current.x + x1, current.y + y1, current.x + x2, current.y + y2, current.x + x, current.y + y]
-          : [x1, y1, x2, y2, x, y];
-
-        segments.push({ type: "C", values });
-        current = { x: values[4], y: values[5] };
-      }
-      continue;
-    }
-
-    if (normalized === "l") {
-      while (hasNumbers()) {
-        const x = readNumber();
-        const y = readNumber();
-        current = relative ? { x: current.x + x, y: current.y + y } : { x, y };
-        segments.push({ type: "L", values: [current.x, current.y] });
-      }
+    while (index < tokens.length && !isCommand(tokens[index])) {
+      write(transformX(read(), relative));
+      if (index < tokens.length && !isCommand(tokens[index])) write(transformY(read(), relative));
     }
   }
 
-  return segments;
-}
-
-function createTargetSegments(sourceSegments, shape) {
-  const targetSegments = [];
-  const drawableCount = Math.max(1, sourceSegments.filter((segment) => segment.type === "M" || segment.type === "C" || segment.type === "L").length);
-  let cursor = 0;
-  let current = shapePoint(shape, 0);
-  let subpathStart = current;
-
-  sourceSegments.forEach((segment) => {
-    if (segment.type === "M") {
-      current = shapePoint(shape, cursor / drawableCount);
-      subpathStart = current;
-      cursor += 1;
-      targetSegments.push({ type: "M", values: [current.x, current.y] });
-      return;
-    }
-
-    if (segment.type === "C") {
-      const t = cursor / drawableCount;
-      const end = shapePoint(shape, t);
-      const startTangent = shapeTangent(shape, Math.max(0, t - 1 / drawableCount));
-      const endTangent = shapeTangent(shape, t);
-      const distance = Math.hypot(end.x - current.x, end.y - current.y);
-      const handle = clamp(distance * 0.45, 7, 22);
-      const values = [
-        current.x + startTangent.x * handle,
-        current.y + startTangent.y * handle,
-        end.x - endTangent.x * handle,
-        end.y - endTangent.y * handle,
-        end.x,
-        end.y,
-      ];
-
-      targetSegments.push({ type: "C", values });
-      current = end;
-      cursor += 1;
-      return;
-    }
-
-    if (segment.type === "L") {
-      const end = shapePoint(shape, cursor / drawableCount);
-      targetSegments.push({ type: "L", values: [end.x, end.y] });
-      current = end;
-      cursor += 1;
-      return;
-    }
-
-    targetSegments.push({ type: "Z", values: [] });
-    current = subpathStart;
-  });
-
-  return targetSegments;
-}
-
-function createTargetSegmentsFromPath(sourceSegments, targetSegments) {
-  const points = normalizePointsToSignature(segmentsToPoints(targetSegments));
-  if (points.length < 2) return createTargetSegments(sourceSegments, "luxe");
-
-  const targetSegmentsOut = [];
-  const drawableCount = Math.max(1, sourceSegments.filter((segment) => segment.type === "M" || segment.type === "C" || segment.type === "L").length);
-  let cursor = 0;
-  let current = samplePolyline(points, 0);
-  let subpathStart = current;
-
-  sourceSegments.forEach((segment) => {
-    if (segment.type === "M") {
-      current = samplePolyline(points, cursor / drawableCount);
-      subpathStart = current;
-      cursor += 1;
-      targetSegmentsOut.push({ type: "M", values: [current.x, current.y] });
-      return;
-    }
-
-    if (segment.type === "C") {
-      const t = cursor / drawableCount;
-      const end = samplePolyline(points, t);
-      const startTangent = polylineTangent(points, Math.max(0, t - 1 / drawableCount));
-      const endTangent = polylineTangent(points, t);
-      const distance = Math.hypot(end.x - current.x, end.y - current.y);
-      const handle = clamp(distance * 0.45, 6, 18);
-      const values = [
-        current.x + startTangent.x * handle,
-        current.y + startTangent.y * handle,
-        end.x - endTangent.x * handle,
-        end.y - endTangent.y * handle,
-        end.x,
-        end.y,
-      ];
-
-      targetSegmentsOut.push({ type: "C", values });
-      current = end;
-      cursor += 1;
-      return;
-    }
-
-    if (segment.type === "L") {
-      const end = samplePolyline(points, cursor / drawableCount);
-      targetSegmentsOut.push({ type: "L", values: [end.x, end.y] });
-      current = end;
-      cursor += 1;
-      return;
-    }
-
-    targetSegmentsOut.push({ type: "Z", values: [] });
-    current = subpathStart;
-  });
-
-  return targetSegmentsOut;
-}
-
-function segmentsToPoints(segments) {
-  return segments
-    .filter((segment) => segment.type === "M" || segment.type === "C" || segment.type === "L")
-    .map((segment) => {
-      if (segment.type === "C") {
-        return { x: segment.values[4], y: segment.values[5] };
-      }
-
-      return { x: segment.values[0], y: segment.values[1] };
-    });
-}
-
-function normalizePointsToSignature(points) {
-  if (!points.length) return points;
-
-  const bounds = points.reduce(
-    (box, point) => ({
-      minX: Math.min(box.minX, point.x),
-      minY: Math.min(box.minY, point.y),
-      maxX: Math.max(box.maxX, point.x),
-      maxY: Math.max(box.maxY, point.y),
-    }),
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-  );
-  const width = Math.max(1, bounds.maxX - bounds.minX);
-  const height = Math.max(1, bounds.maxY - bounds.minY);
-  const scale = Math.min(48 / width, 54 / height);
-  const center = { x: 112, y: 124 };
-
-  return points.map((point) => ({
-    x: center.x + (point.x - bounds.minX - width / 2) * scale,
-    y: center.y + (point.y - bounds.minY - height / 2) * scale,
-  }));
-}
-
-function samplePolyline(points, t) {
-  const index = wrap01(t) * points.length;
-  const start = points[Math.floor(index) % points.length];
-  const end = points[(Math.floor(index) + 1) % points.length];
-  const progress = index - Math.floor(index);
-
-  return {
-    x: start.x + (end.x - start.x) * progress,
-    y: start.y + (end.y - start.y) * progress,
-  };
-}
-
-function polylineTangent(points, t) {
-  const before = samplePolyline(points, t - 0.006);
-  const after = samplePolyline(points, t + 0.006);
-  const x = after.x - before.x;
-  const y = after.y - before.y;
-  const length = Math.hypot(x, y) || 1;
-  return { x: x / length, y: y / length };
-}
-
-function translateSegments(segments, x, y) {
-  return segments.map((segment) => {
-    if (segment.type === "Z") return segment;
-
-    return {
-      type: segment.type,
-      values: segment.values.map((value, index) => value + (index % 2 === 0 ? x : y)),
-    };
-  });
-}
-
-function parseTranslate(transform) {
-  const match = transform?.match(/translate\(([-+]?(?:\d*\.)?\d+)(?:[,\s]+([-+]?(?:\d*\.)?\d+))?\)/);
-  return {
-    x: match ? Number(match[1]) : 0,
-    y: match && match[2] ? Number(match[2]) : 0,
-  };
-}
-
-function shapePoint(shape, t) {
-  const angle = t * Math.PI * 2;
-  const center = { x: 112, y: 126 };
-
-  if (shape === "luxe") {
-    const radius = 38 + Math.sin(angle * 4) * 7;
-    return {
-      x: center.x + Math.cos(angle) * radius,
-      y: center.y + Math.sin(angle) * radius * 0.58,
-    };
-  }
-
-  return {
-    x: center.x + Math.sin(angle) * 52,
-    y: center.y + Math.sin(angle) * Math.cos(angle) * 34,
-  };
-}
-
-function shapeTangent(shape, t) {
-  const before = shapePoint(shape, wrap01(t - 0.006));
-  const after = shapePoint(shape, wrap01(t + 0.006));
-  const x = after.x - before.x;
-  const y = after.y - before.y;
-  const length = Math.hypot(x, y) || 1;
-  return { x: x / length, y: y / length };
-}
-
-function interpolateSegments(fromSegments, toSegments, progress) {
-  return fromSegments.map((fromSegment, index) => {
-    const toSegment = toSegments[index];
-    return {
-      type: fromSegment.type,
-      values: fromSegment.values.map((value, valueIndex) => {
-        return value + (toSegment.values[valueIndex] - value) * progress;
-      }),
-    };
-  });
-}
-
-function segmentsToD(segments) {
-  return segments
-    .map((segment) => {
-      if (segment.type === "Z") return "Z";
-      return `${segment.type} ${segment.values.map((value) => value.toFixed(3)).join(" ")}`;
-    })
-    .join(" ");
+  return output.join(" ");
 }
 
 function initContactForm() {
@@ -614,16 +606,4 @@ function initVideoDialog() {
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function wrap01(value) {
-  return ((value % 1) + 1) % 1;
-}
-
-function easeInOutCubic(value) {
-  return value < 0.5 ? 4 * value * value * value : 1 - Math.pow(-2 * value + 2, 3) / 2;
 }
