@@ -840,6 +840,10 @@ body.is-work-scene .hero-morph-path {
     width: var(--signature-width, 88vw);
   }
 
+  body.is-work-scene .signature--hero {
+    transition: opacity 300ms ease, width 420ms ease;
+  }
+
   .hero h1 {
     max-width: 420px;
     font-size: clamp(2.8rem, 13vw, 4.1rem);
@@ -858,6 +862,8 @@ body.is-work-scene .hero-morph-path {
 
   .company-content {
     margin-top: -4svh;
+    opacity: 1;
+    transform: none;
   }
 
   .video-grid {

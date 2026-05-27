@@ -110,8 +110,7 @@ function initEasedSnapScroll() {
   const snapViewport = window.matchMedia("(min-width: 761px)");
   if (!snapViewport.matches) return;
 
-  const panelSelector = ".hero, .company-panel";
-  const contactSection = document.querySelector("#contact");
+  const panelSelector = ".hero, .company-panel, .contact";
   const ignoredSelector = "dialog, input, textarea, select, [contenteditable='true']";
   let isAnimating = false;
   let touchStartX = 0;
@@ -155,11 +154,7 @@ function initEasedSnapScroll() {
   };
 
   const shouldUsePanelSnap = () => {
-    if (!snapViewport.matches) return false;
-    if (!contactSection) return true;
-
-    const contactRect = contactSection.getBoundingClientRect();
-    return contactRect.top >= window.innerHeight || contactRect.bottom <= 0;
+    return snapViewport.matches;
   };
 
   const scrollToPanel = (index) => {
@@ -378,7 +373,8 @@ function initReveals() {
   const panels = [...document.querySelectorAll(".company-panel")];
   if (!panels.length) return;
 
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const revealViewport = window.matchMedia("(min-width: 761px)");
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !revealViewport.matches) {
     panels.forEach((panel) => panel.classList.add("is-visible"));
     return;
   }
@@ -398,7 +394,23 @@ function initReveals() {
 function initSignatureScene() {
   const workSection = document.querySelector("#work");
   const contactSection = document.querySelector("#contact");
+  const mobileWorkViewport = window.matchMedia("(max-width: 760px)");
   if (!workSection) return;
+
+  const getActiveLogoSlot = () => {
+    const slots = [...document.querySelectorAll(".company-logo-slot")];
+    if (!slots.length) return null;
+
+    const viewportAnchor = window.innerHeight * 0.24;
+    return slots.reduce((closest, slot) => {
+      const rect = slot.getBoundingClientRect();
+      const center = rect.top + rect.height / 2;
+      const distance = Math.abs(center - viewportAnchor);
+      return !closest || distance < closest.distance
+        ? { slot, distance }
+        : closest;
+    }, null)?.slot;
+  };
 
   const update = () => {
     const workRect = workSection.getBoundingClientRect();
@@ -411,8 +423,18 @@ function initSignatureScene() {
       : false;
 
     document.body.classList.toggle("is-work-scene", keepWorkArtwork);
+
+    let signatureY = keepWorkArtwork ? "23svh" : "33svh";
+    if (keepWorkArtwork && mobileWorkViewport.matches) {
+      const logoSlot = getActiveLogoSlot();
+      if (logoSlot) {
+        const slotRect = logoSlot.getBoundingClientRect();
+        signatureY = `${Math.round(slotRect.top + slotRect.height / 2)}px`;
+      }
+    }
+
     document.documentElement.style.setProperty(
-      "--signature-y", keepWorkArtwork ? "23svh" : "33svh"
+      "--signature-y", signatureY
     );
     document.documentElement.style.setProperty(
       "--signature-width", keepWorkArtwork ? "min(34vw, 430px)" : "min(60vw, 820px)"
@@ -428,6 +450,7 @@ function initSignatureScene() {
   update();
   window.addEventListener("scroll", update, { passive: true });
   window.addEventListener("resize", update);
+  mobileWorkViewport.addEventListener("change", update);
 }
 
 function initSignatureDrawState() {
