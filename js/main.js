@@ -147,6 +147,7 @@ function initMorphingSignature() {
   const sourcePath = document.querySelector("#path1");
   const morphPath = document.querySelector("#morph-path");
   const workSection = document.querySelector("#work");
+  const contactSection = document.querySelector("#contact");
   if (!sourcePath || !morphPath || !workSection) return;
 
   const sourceSegments = parsePathToAbsolute(sourcePath.getAttribute("d"));
@@ -157,17 +158,27 @@ function initMorphingSignature() {
 
   morphPath.setAttribute("d", segmentsToD(sourceSegments));
 
-  if (prefersReducedMotion.matches) {
-    return;
-  }
-
   let ticking = false;
+
+  const updateSignatureScene = () => {
+    const workRect = workSection.getBoundingClientRect();
+    const contactRect = contactSection?.getBoundingClientRect();
+    const inWorkScene = workRect.top <= window.innerHeight * 0.58 && workRect.bottom >= window.innerHeight * 0.28;
+    const enteringContact = contactRect ? contactRect.top <= window.innerHeight * 0.72 : false;
+
+    document.body.classList.toggle("is-work-scene", inWorkScene && !enteringContact);
+    document.documentElement.style.setProperty("--signature-y", inWorkScene ? "42svh" : "33svh");
+    document.documentElement.style.setProperty("--signature-opacity", enteringContact ? "0" : "1");
+
+    return clamp(-workRect.top / Math.max(1, workSection.offsetHeight - window.innerHeight), 0, 1);
+  };
 
   const updateMorph = () => {
     ticking = false;
 
-    const scrollable = Math.max(1, workSection.offsetHeight - window.innerHeight);
-    const progress = clamp(-workSection.getBoundingClientRect().top / scrollable, 0, 1);
+    const progress = updateSignatureScene();
+    if (prefersReducedMotion.matches) return;
+
     const scaled = progress * (states.length - 1);
     const index = Math.min(states.length - 2, Math.floor(scaled));
     const localProgress = easeInOutCubic(scaled - index);
@@ -184,6 +195,7 @@ function initMorphingSignature() {
   updateMorph();
   window.addEventListener("scroll", requestMorph, { passive: true });
   window.addEventListener("resize", requestMorph);
+  prefersReducedMotion.addEventListener("change", requestMorph);
 }
 
 function parsePathToAbsolute(d) {

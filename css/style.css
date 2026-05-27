@@ -120,6 +120,19 @@ textarea {
   text-align: center;
 }
 
+.hero-inner::before {
+  content: "";
+  display: block;
+  width: min(60vw, 820px);
+  min-width: min(76vw, 420px);
+  aspect-ratio: 195 / 105;
+}
+
+.hero-inner > :not(.signature--hero) {
+  position: relative;
+  z-index: 2;
+}
+
 .signature {
   display: block;
   height: auto;
@@ -128,28 +141,29 @@ textarea {
 }
 
 .signature--hero {
+  position: fixed;
+  z-index: 1;
+  top: var(--signature-y, 33svh);
+  left: 50%;
   width: min(60vw, 820px);
   min-width: min(76vw, 420px);
+  opacity: var(--signature-opacity, 1);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: top 420ms ease, opacity 300ms ease, width 420ms ease;
 }
 
-.trailing-stroke {
-  width: 32px;
-  height: 104px;
-  margin-top: -14px;
+.hero-morph-path {
   opacity: 0;
-  overflow: visible;
-  animation: revealTrail 0.8s ease 3.35s forwards;
+  transition: opacity 260ms ease;
 }
 
-.trailing-stroke path {
-  fill: none;
-  stroke: var(--text-primary);
-  stroke-width: 1.1;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 170;
-  stroke-dashoffset: 170;
-  animation: drawTrail 0.95s cubic-bezier(.65, 0, .25, 1) 3.35s forwards;
+body.is-work-scene #signature-art {
+  opacity: 0 !important;
+}
+
+body.is-work-scene .hero-morph-path {
+  opacity: 0.82;
 }
 
 .hero .eyebrow,
@@ -166,11 +180,11 @@ textarea {
 }
 
 .hero h1 {
-  max-width: 760px;
+  max-width: 620px;
   margin: 0;
-  font-size: clamp(2.6rem, 7vw, 7rem);
+  font-size: clamp(2rem, 4.5vw, 4.5rem);
   font-weight: 300;
-  line-height: 1;
+  line-height: 1.08;
   animation-delay: 3.48s;
 }
 
@@ -195,13 +209,6 @@ textarea {
   color: var(--text-secondary);
 }
 
-.section-kicker {
-  max-width: 720px;
-  margin: 0 auto 52px;
-  text-align: center;
-}
-
-.section-kicker h2,
 .contact h2 {
   margin: 10px 0 0;
   font-size: clamp(2rem, 5vw, 5.2rem);
@@ -216,22 +223,6 @@ textarea {
   overflow: clip;
 }
 
-.work-stage {
-  position: sticky;
-  z-index: 0;
-  top: 0;
-  height: 100svh;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-}
-
-.signature--morph {
-  width: min(58vw, 760px);
-  min-width: min(78vw, 360px);
-  opacity: 0.82;
-}
-
 #morph-path {
   fill: var(--text-primary);
   stroke: none;
@@ -239,8 +230,8 @@ textarea {
 
 .company-track {
   position: relative;
-  z-index: 1;
-  margin-top: -100svh;
+  z-index: 2;
+  margin-top: 0;
 }
 
 .company-panel {
@@ -513,18 +504,6 @@ textarea {
   }
 }
 
-@keyframes revealTrail {
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes drawTrail {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
 @media (max-width: 760px) {
   .site-header {
     padding: 18px 20px;
@@ -551,12 +530,13 @@ textarea {
   }
 
   .signature--hero,
-  .signature--morph {
+  .hero-inner::before {
     width: 88vw;
   }
 
   .hero h1 {
-    font-size: clamp(2.6rem, 16vw, 4.6rem);
+    max-width: 420px;
+    font-size: clamp(2.1rem, 10vw, 3.4rem);
   }
 
   .work {
@@ -625,13 +605,8 @@ textarea {
   .hero .eyebrow,
   .hero h1,
   .work-cta,
-  .trailing-stroke,
   .company-content {
     opacity: 1;
     transform: none;
-  }
-
-  .trailing-stroke path {
-    stroke-dashoffset: 0;
   }
 }
