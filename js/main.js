@@ -107,8 +107,11 @@ function syncWorkLength() {
 
 function initEasedSnapScroll() {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const snapViewport = window.matchMedia("(min-width: 761px)");
+  if (!snapViewport.matches) return;
 
-  const panelSelector = ".hero, .company-panel, .contact";
+  const panelSelector = ".hero, .company-panel";
+  const contactSection = document.querySelector("#contact");
   const ignoredSelector = "dialog, input, textarea, select, [contenteditable='true']";
   let isAnimating = false;
   let touchStartX = 0;
@@ -151,6 +154,14 @@ function initEasedSnapScroll() {
     return shouldIgnore(target) || Boolean(element?.closest("button"));
   };
 
+  const shouldUsePanelSnap = () => {
+    if (!snapViewport.matches) return false;
+    if (!contactSection) return true;
+
+    const contactRect = contactSection.getBoundingClientRect();
+    return contactRect.top >= window.innerHeight || contactRect.bottom <= 0;
+  };
+
   const scrollToPanel = (index) => {
     const panels = getPanels();
     if (!panels.length) return;
@@ -183,23 +194,36 @@ function initEasedSnapScroll() {
     requestAnimationFrame(tick);
   };
 
-  const goToAdjacentPanel = (direction) => {
+  const getAdjacentPanelIndex = (direction) => {
     const panels = getPanels();
-    if (!panels.length) return;
+    if (!panels.length) return null;
 
-    scrollToPanel(getClosestPanelIndex() + direction);
+    const targetIndex = getClosestPanelIndex() + direction;
+    return targetIndex >= 0 && targetIndex < panels.length ? targetIndex : null;
+  };
+
+  const goToAdjacentPanel = (direction) => {
+    const targetIndex = getAdjacentPanelIndex(direction);
+    if (targetIndex === null) return false;
+
+    scrollToPanel(targetIndex);
+    return true;
   };
 
   window.addEventListener(
     "wheel",
     (event) => {
       if (shouldIgnore(event.target) || event.ctrlKey || event.metaKey) return;
+      if (!shouldUsePanelSnap()) return;
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+      const direction = event.deltaY > 0 ? 1 : -1;
+      if (!isAnimating && getAdjacentPanelIndex(direction) === null) return;
 
       event.preventDefault();
       if (isAnimating) return;
 
-      goToAdjacentPanel(event.deltaY > 0 ? 1 : -1);
+      goToAdjacentPanel(direction);
     },
     { passive: false }
   );
@@ -208,6 +232,7 @@ function initEasedSnapScroll() {
     "keydown",
     (event) => {
       if (shouldIgnoreKey(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (!shouldUsePanelSnap()) return;
 
       const downKeys = ["ArrowDown", "PageDown"];
       const upKeys = ["ArrowUp", "PageUp"];
@@ -215,10 +240,13 @@ function initEasedSnapScroll() {
 
       if (!downKeys.includes(event.key) && !upKeys.includes(event.key) && !isSpace) return;
 
+      const direction = upKeys.includes(event.key) || (isSpace && event.shiftKey) ? -1 : 1;
+      if (!isAnimating && getAdjacentPanelIndex(direction) === null) return;
+
       event.preventDefault();
       if (isAnimating) return;
 
-      goToAdjacentPanel(upKeys.includes(event.key) || (isSpace && event.shiftKey) ? -1 : 1);
+      goToAdjacentPanel(direction);
     }
   );
 
@@ -237,6 +265,7 @@ function initEasedSnapScroll() {
     "touchmove",
     (event) => {
       if (shouldIgnore(event.target) || isAnimating || touchHasSnapped) return;
+      if (!shouldUsePanelSnap()) return;
 
       const touch = event.changedTouches[0];
       const deltaX = touch.clientX - touchStartX;
@@ -244,9 +273,12 @@ function initEasedSnapScroll() {
 
       if (Math.abs(deltaY) < 18 || Math.abs(deltaY) <= Math.abs(deltaX)) return;
 
+      const direction = deltaY < 0 ? 1 : -1;
+      if (!isAnimating && getAdjacentPanelIndex(direction) === null) return;
+
       event.preventDefault();
       touchHasSnapped = true;
-      goToAdjacentPanel(deltaY < 0 ? 1 : -1);
+      goToAdjacentPanel(direction);
     },
     { passive: false }
   );
@@ -255,6 +287,7 @@ function initEasedSnapScroll() {
     const clicked = event.target instanceof Element ? event.target : null;
     const link = clicked?.closest('a[href^="#"]');
     if (!link || shouldIgnore(event.target)) return;
+    if (!shouldUsePanelSnap()) return;
 
     const target = document.querySelector(link.getAttribute("href"));
     if (!target?.matches(panelSelector) && !target?.closest(panelSelector)) return;
