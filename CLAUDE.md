@@ -1,14 +1,17 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-A single-file static portfolio page (`index.html`) featuring an animated cursive "Gavin" signature drawn with SVG path animations.
+Static portfolio splash page — an animated cursive "Gavin" signature. No build step, no framework.
 
-## Running the Project
+- `index.html` — entry point; contains all CSS and the inline SVG
+- `gavin-signature-animated2.svg` — standalone SVG source; keep in sync with the inline SVG in `index.html`
+- `assets/` — static assets
+- `Gavin-Portfolio/` — additional portfolio files
 
-No build step — open `index.html` directly in a browser, or serve it with any static file server:
+## Running
 
 ```powershell
 npx serve .
@@ -16,12 +19,60 @@ npx serve .
 python -m http.server 8080
 ```
 
-## Architecture
+## Layout
 
-Everything lives in `index.html` — inline CSS, inline SVG, and inline JavaScript.
+`.signature` SVG sizing:
 
-**SVG structure:** The signature is split into 7 `<path>` segments (`#s1`–`#s7`) drawn in order: capital G → lowercase a → v → i stem → n → exit flourish → underline flourish. A `<circle id="dot">` handles the i-dot separately.
+```css
+width: min(95vw, clamp(500px, 80vw, 900px));
+height: auto;
+padding-top: 10vh;
+```
 
-**Animation approach:** Each segment uses the `strokeDasharray` / `strokeDashoffset` technique. On each `requestAnimationFrame` tick, a global progress value (eased with `easeInOutQuad`) is converted to a "total length drawn" value. Segments are revealed sequentially by setting their `strokeDashoffset` proportionally. A `#pen-dot` circle tracks the tip of the currently-drawing stroke.
+Root SVG viewBox (cropped to signature content):
 
-**Timing:** Total animation duration is `4200ms` with a `600ms` initial delay. Each segment's time share is proportional to its path length so longer strokes take longer — mimicking natural handwriting speed. The i-dot appears once the i-stem segment finishes.
+```svg
+viewBox="15 78 195 105"
+```
+
+Keep this viewBox unless artwork is intentionally re-exported.
+
+## SVG Structure
+
+Visible black artwork — do not edit `d` data or animate directly:
+
+```svg
+<g inkscape:label="Signature" id="layer1">
+  <path id="path1" ... />
+</g>
+```
+
+Handwriting reveal uses a mask:
+
+```svg
+<mask id="signature-mask">
+  <rect width="210" height="297" fill="black" />
+  <path id="draw-gavin" pathLength="400" ... />
+  <ellipse id="draw-i-dot" ... />
+</mask>
+
+<g id="signature-art" mask="url(#signature-mask)"> ... </g>
+```
+
+## Animation
+
+CSS-only, no JS.
+
+| Element | Timing |
+|---|---|
+| `#draw-gavin` | `3.2s cubic-bezier(.65, 0, .25, 1)` |
+| `#draw-i-dot` | `0.25s ease-out 3.15s` |
+| `#signature-art` | `0.01s delay 0.04s` (avoids first-frame mask artifact) |
+
+`@media (prefers-reduced-motion: reduce)` disables animation and shows the full signature.
+
+## Important Notes
+
+- Do **not** add white cover shapes, clipped holes, or `intersection-*` mask elements for the G crossing — prior attempts made the animation worse and were removed.
+- If the G crossing needs work, fix the draw path in a vector editor or split into ordered segments.
+- When editing the SVG, update **both** `gavin-signature-animated2.svg` and the inline SVG in `index.html`.
