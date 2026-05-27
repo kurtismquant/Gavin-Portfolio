@@ -14,6 +14,17 @@ const companies = [
   },
 ];
 
+const MEDIA_VOLUME_SCALE = 0.25;
+
+function capMediaVolume(media) {
+  if (!media) return;
+
+  media.volume = MEDIA_VOLUME_SCALE;
+  media.addEventListener("volumechange", () => {
+    if (media.volume > MEDIA_VOLUME_SCALE) media.volume = MEDIA_VOLUME_SCALE;
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   gsap.registerPlugin(ScrollTrigger, MorphSVGPlugin, DrawSVGPlugin);
   initSignatureDrawState();
@@ -75,8 +86,8 @@ function renderCompanies() {
     const grid = document.createElement("div");
     grid.className = "video-grid";
 
-    company.videos.filter((video) => video.src).forEach((video) => {
-      grid.appendChild(createVideoCard(company, video));
+    company.videos.filter((video) => video.src).forEach((video, videoIndex) => {
+      grid.appendChild(createVideoCard(company, video, index, videoIndex));
     });
 
     content.append(title, meta, grid);
@@ -100,10 +111,9 @@ function initEasedSnapScroll() {
   const panelSelector = ".hero, .company-panel, .contact";
   const ignoredSelector = "dialog, input, textarea, select, [contenteditable='true']";
   let isAnimating = false;
-  let wheelDelta = 0;
-  let wheelTimer = 0;
   let touchStartX = 0;
   let touchStartY = 0;
+  let touchHasSnapped = false;
 
   const getPanels = () => Array.from(document.querySelectorAll(panelSelector));
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -111,6 +121,10 @@ function initEasedSnapScroll() {
 
   const maxScrollY = () =>
     Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+
+  const setScrollY = (top) => {
+    window.scrollTo(0, top);
+  };
 
   const getPanelTop = (panel) =>
     clamp(panel.getBoundingClientRect().top + window.scrollY, 0, maxScrollY());
@@ -148,21 +162,21 @@ function initEasedSnapScroll() {
 
     if (Math.abs(distance) < 2) return;
 
-    const duration = clamp(Math.abs(distance) * 0.55, 720, 1120);
+    const duration = clamp(Math.abs(distance) * 0.48, 560, 920);
     const startedAt = performance.now();
     isAnimating = true;
 
     const tick = (now) => {
       const progress = clamp((now - startedAt) / duration, 0, 1);
       const eased = easeOutCubic(progress);
-      window.scrollTo(0, startY + distance * eased);
+      setScrollY(startY + distance * eased);
 
       if (progress < 1) {
         requestAnimationFrame(tick);
         return;
       }
 
-      window.scrollTo(0, endY);
+      setScrollY(endY);
       isAnimating = false;
     };
 
@@ -185,17 +199,7 @@ function initEasedSnapScroll() {
       event.preventDefault();
       if (isAnimating) return;
 
-      wheelDelta += event.deltaY;
-      window.clearTimeout(wheelTimer);
-      wheelTimer = window.setTimeout(() => {
-        wheelDelta = 0;
-      }, 120);
-
-      if (Math.abs(wheelDelta) < 18) return;
-
-      const direction = wheelDelta > 0 ? 1 : -1;
-      wheelDelta = 0;
-      goToAdjacentPanel(direction);
+      goToAdjacentPanel(event.deltaY > 0 ? 1 : -1);
     },
     { passive: false }
   );
@@ -224,24 +228,27 @@ function initEasedSnapScroll() {
       const touch = event.changedTouches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;
+      touchHasSnapped = false;
     },
     { passive: true }
   );
 
   window.addEventListener(
-    "touchend",
+    "touchmove",
     (event) => {
-      if (shouldIgnore(event.target) || isAnimating) return;
+      if (shouldIgnore(event.target) || isAnimating || touchHasSnapped) return;
 
       const touch = event.changedTouches[0];
       const deltaX = touch.clientX - touchStartX;
       const deltaY = touch.clientY - touchStartY;
 
-      if (Math.abs(deltaY) < 56 || Math.abs(deltaY) <= Math.abs(deltaX)) return;
+      if (Math.abs(deltaY) < 18 || Math.abs(deltaY) <= Math.abs(deltaX)) return;
 
+      event.preventDefault();
+      touchHasSnapped = true;
       goToAdjacentPanel(deltaY < 0 ? 1 : -1);
     },
-    { passive: true }
+    { passive: false }
   );
 
   document.addEventListener("click", (event) => {
@@ -257,15 +264,17 @@ function initEasedSnapScroll() {
   });
 }
 
-function createVideoCard(company, video) {
+function createVideoCard(company, video, companyIndex, videoIndex) {
   const button = document.createElement("button");
   button.className = "video-card";
   button.type = "button";
   button.dataset.company = company.name;
   button.dataset.title = video.title;
   button.dataset.src = video.src || "";
+  button.dataset.companyIndex = companyIndex;
+  button.dataset.videoIndex = videoIndex;
   button.classList.toggle("has-video", Boolean(video.src));
-  button.setAttribute("aria-label", `Open ${video.title} for ${company.name}`);
+  button.setAttribute("aria-label", `Open reel #${videoIndex + 1} for ${company.name}`);
 
   if (video.src) {
     const preview = document.createElement("video");
@@ -294,7 +303,8 @@ function createVideoCard(company, video) {
   playMark.innerHTML = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>';
 
   const label = document.createElement("span");
-  label.textContent = video.title;
+  label.className = "video-card-cta";
+  label.textContent = "View Reel →";
 
   button.append(playMark, label);
   return button;
@@ -571,30 +581,79 @@ function initVideoDialog() {
 
   const company = dialog.querySelector("#dialog-company");
   const title = dialog.querySelector("#dialog-title");
+  const meta = dialog.querySelector("#dialog-meta");
+  const count = dialog.querySelector("#dialog-count");
+  const prevButton = dialog.querySelector("#dialog-prev");
+  const nextButton = dialog.querySelector("#dialog-next");
+  const prevLabel = dialog.querySelector("#dialog-prev-label");
+  const nextLabel = dialog.querySelector("#dialog-next-label");
   const copy = dialog.querySelector("#dialog-copy");
   const video = dialog.querySelector("#dialog-video");
   const closeButton = dialog.querySelector(".dialog-close");
+  let activeCompanyIndex = 0;
+  let activeVideoIndex = 0;
+
+  capMediaVolume(video);
+
+  const getActiveVideos = () =>
+    (companies[activeCompanyIndex]?.videos || []).filter((reel) => reel.src);
+
+  const loadReel = (videoIndex) => {
+    const activeCompany = companies[activeCompanyIndex];
+    const reels = getActiveVideos();
+    const reel = reels[videoIndex];
+    if (!activeCompany || !reel || !video) return;
+
+    activeVideoIndex = videoIndex;
+    company.textContent = activeCompany.name;
+    title.textContent = `#${activeVideoIndex + 1}`;
+    if (meta) meta.textContent = `${activeCompany.type} · ${activeCompany.views}`;
+    if (count) count.textContent = `${activeVideoIndex + 1} / ${reels.length}`;
+
+    const previousIndex = activeVideoIndex - 1;
+    const nextIndex = activeVideoIndex + 1;
+    if (prevButton && prevLabel) {
+      prevButton.hidden = previousIndex < 0;
+      if (previousIndex >= 0) {
+        prevButton.setAttribute("aria-label", `Open reel #${previousIndex + 1}`);
+        prevLabel.textContent = `#${previousIndex + 1}`;
+      }
+    }
+    if (nextButton && nextLabel) {
+      nextButton.hidden = nextIndex >= reels.length;
+      if (nextIndex < reels.length) {
+        nextButton.setAttribute("aria-label", `Open reel #${nextIndex + 1}`);
+        nextLabel.textContent = `#${nextIndex + 1}`;
+      }
+    }
+
+    video.hidden = false;
+    video.src = reel.src;
+    video.volume = MEDIA_VOLUME_SCALE;
+    video.load();
+    video.play().catch(() => {});
+    copy.hidden = true;
+    copy.textContent = "";
+  };
 
   document.addEventListener("click", (event) => {
     const card = event.target.closest(".video-card");
     if (!card) return;
 
-    company.textContent = card.dataset.company;
-    title.textContent = card.dataset.title;
-
-    if (!card.dataset.src || !video) return;
-
-    video.hidden = false;
-    video.src = card.dataset.src;
-    video.load();
-    copy.hidden = true;
-    copy.textContent = "";
+    activeCompanyIndex = Number(card.dataset.companyIndex || 0);
+    loadReel(Number(card.dataset.videoIndex || 0));
 
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
     } else {
       dialog.setAttribute("open", "");
     }
+  });
+
+  prevButton?.addEventListener("click", () => loadReel(Math.max(0, activeVideoIndex - 1)));
+  nextButton?.addEventListener("click", () => {
+    const reels = getActiveVideos();
+    loadReel(Math.min(reels.length - 1, activeVideoIndex + 1));
   });
 
   closeButton?.addEventListener("click", () => dialog.close());

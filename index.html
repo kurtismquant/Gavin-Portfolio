@@ -159,10 +159,26 @@
 
     <dialog class="video-dialog" id="video-dialog">
       <button class="dialog-close" type="button" aria-label="Close video preview">&times;</button>
-      <p class="eyebrow" id="dialog-company"></p>
-      <h2 id="dialog-title"></h2>
-      <video class="dialog-video" id="dialog-video" controls playsinline hidden></video>
-      <p id="dialog-copy"></p>
+      <div class="dialog-heading">
+        <p class="eyebrow" id="dialog-company"></p>
+        <h2 id="dialog-title"></h2>
+        <p class="dialog-meta" id="dialog-meta"></p>
+      </div>
+      <div class="dialog-video-shell">
+        <video class="dialog-video" id="dialog-video" controls playsinline hidden></video>
+      </div>
+      <nav class="dialog-reel-nav" aria-label="Reel navigation">
+        <button class="dialog-nav-button" id="dialog-prev" type="button">
+          <span aria-hidden="true">&larr;</span>
+          <span id="dialog-prev-label"></span>
+        </button>
+        <p class="dialog-count" id="dialog-count" aria-live="polite"></p>
+        <button class="dialog-nav-button" id="dialog-next" type="button">
+          <span id="dialog-next-label"></span>
+          <span aria-hidden="true">&rarr;</span>
+        </button>
+      </nav>
+      <p id="dialog-copy" hidden></p>
     </dialog>
   </body>
 </html>
