@@ -463,11 +463,11 @@ function initSignatureDrawState() {
 function initHeroDrawTimeline() {
   initSignatureDrawState();
 
-  const dotStartTime = 2.15;
+  const dotStartTime = 1.4;
   const dotDuration = 0.25;
 
   const tl = gsap.timeline();
-  tl.to("#draw-gavin", { drawSVG: "100%", duration: 3.2, ease: "power2.inOut" })
+  tl.to("#draw-gavin", { drawSVG: "100%", duration: 2.6, ease: "power2.inOut" })
     .fromTo(
       "#draw-i-dot",
       { opacity: 0, scale: 0 },
@@ -477,7 +477,7 @@ function initHeroDrawTimeline() {
     .to(
       ".hero .eyebrow, .hero h1, .work-cta",
       { opacity: 1, y: 0, stagger: 0.18, duration: 0.6, ease: "power2.out" },
-      dotStartTime + dotDuration + 0.05
+      dotStartTime + dotDuration + 0.2
     );
 }
 
