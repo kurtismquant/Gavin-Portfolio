@@ -1,24 +1,16 @@
 const companies = [
   {
-    name: "Luxe Beauty",
-    type: "Product Launch",
-    views: "2.1M",
-    shape: "luxe",
-    videos: [{ title: "Teaser" }, { title: "Unboxing" }, { title: "Tutorial" }],
-  },
-  {
-    name: "Nova Tech",
-    type: "Brand Awareness",
-    views: "4.7M",
-    shape: "nova",
-    videos: [{ title: "Launch" }, { title: "Demo" }, { title: "Story" }, { title: "BTS" }],
-  },
-  {
-    name: "Apex Fitness",
-    type: "UGC Campaign",
-    views: "1.8M",
-    shape: "apex",
-    videos: [{ title: "Before/After" }, { title: "Routine" }],
+    name: "Excited to Eat",
+    type: "Social Campaign",
+    views: "3 reels",
+    shape: "excited",
+    image: "company1.svg",
+    morphPathIndex: 0,
+    videos: [
+      { title: "Video 1", src: "video1.mp4" },
+      { title: "Video 2", src: "video2.mp4" },
+      { title: "Video 3", src: "video3.mp4" },
+    ],
   },
 ];
 
@@ -26,6 +18,7 @@ const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)
 
 document.addEventListener("DOMContentLoaded", () => {
   renderCompanies();
+  syncWorkLength();
   initHeader();
   initActiveNav();
   initReveals();
@@ -48,18 +41,25 @@ function renderCompanies() {
     const content = document.createElement("div");
     content.className = "company-content";
 
+    if (company.image) {
+      const logoSlot = document.createElement("div");
+      logoSlot.className = "company-logo-slot";
+      logoSlot.setAttribute("aria-hidden", "true");
+      content.appendChild(logoSlot);
+    }
+
     const title = document.createElement("h3");
     title.className = "company-name";
     title.textContent = company.name;
 
     const meta = document.createElement("p");
     meta.className = "video-meta";
-    meta.textContent = `${company.type} \u00b7 ${company.views} views`;
+    meta.textContent = `${company.type} \u00b7 ${company.views}`;
 
     const grid = document.createElement("div");
     grid.className = "video-grid";
 
-    company.videos.forEach((video) => {
+    company.videos.filter((video) => video.src).forEach((video) => {
       grid.appendChild(createVideoCard(company, video));
     });
 
@@ -71,12 +71,43 @@ function renderCompanies() {
   track.appendChild(fragment);
 }
 
+function syncWorkLength() {
+  const workSection = document.querySelector("#work");
+  if (!workSection) return;
+
+  workSection.style.setProperty("--work-min-height", `${Math.max(1, companies.length) * 100}svh`);
+}
+
 function createVideoCard(company, video) {
   const button = document.createElement("button");
   button.className = "video-card";
   button.type = "button";
   button.dataset.company = company.name;
   button.dataset.title = video.title;
+  button.dataset.src = video.src || "";
+  button.classList.toggle("has-video", Boolean(video.src));
+  button.setAttribute("aria-label", `Open ${video.title} for ${company.name}`);
+
+  if (video.src) {
+    const preview = document.createElement("video");
+    preview.className = "video-preview";
+    preview.src = video.src;
+    preview.muted = true;
+    preview.loop = true;
+    preview.playsInline = true;
+    preview.preload = "metadata";
+    preview.setAttribute("aria-hidden", "true");
+
+    button.addEventListener("mouseenter", () => {
+      preview.play().catch(() => {});
+    });
+    button.addEventListener("mouseleave", () => {
+      preview.pause();
+      preview.currentTime = 0;
+    });
+
+    button.appendChild(preview);
+  }
 
   const playMark = document.createElement("span");
   playMark.className = "play-mark";
@@ -143,7 +174,7 @@ function initReveals() {
   panels.forEach((panel) => observer.observe(panel));
 }
 
-function initMorphingSignature() {
+async function initMorphingSignature() {
   const sourcePath = document.querySelector("#path1");
   const morphPath = document.querySelector("#morph-path");
   const workSection = document.querySelector("#work");
@@ -153,8 +184,11 @@ function initMorphingSignature() {
   const sourceSegments = parsePathToAbsolute(sourcePath.getAttribute("d"));
   if (!sourceSegments.length) return;
 
-  const shapeSegments = companies.map((company) => createTargetSegments(sourceSegments, company.shape));
+  const shapeSegments = await Promise.all(
+    companies.map((company) => createCompanyTargetSegments(sourceSegments, company))
+  );
   const states = [sourceSegments, ...shapeSegments, sourceSegments];
+  const firstCompanyProgress = 1 / Math.max(1, states.length - 1);
 
   morphPath.setAttribute("d", segmentsToD(sourceSegments));
 
@@ -167,10 +201,13 @@ function initMorphingSignature() {
     const enteringContact = contactRect ? contactRect.top <= window.innerHeight * 0.72 : false;
 
     document.body.classList.toggle("is-work-scene", inWorkScene && !enteringContact);
-    document.documentElement.style.setProperty("--signature-y", inWorkScene ? "42svh" : "33svh");
+    document.documentElement.style.setProperty("--signature-y", inWorkScene ? "23svh" : "33svh");
+    document.documentElement.style.setProperty("--signature-width", inWorkScene ? "min(34vw, 430px)" : "min(60vw, 820px)");
+    document.documentElement.style.setProperty("--signature-min-width", inWorkScene ? "0px" : "min(76vw, 420px)");
     document.documentElement.style.setProperty("--signature-opacity", enteringContact ? "0" : "1");
 
-    return clamp(-workRect.top / Math.max(1, workSection.offsetHeight - window.innerHeight), 0, 1);
+    const progress = clamp(-workRect.top / Math.max(1, workSection.offsetHeight - window.innerHeight), 0, 1);
+    return inWorkScene && workRect.top <= 1 ? Math.max(progress, firstCompanyProgress) : progress;
   };
 
   const updateMorph = () => {
@@ -196,6 +233,31 @@ function initMorphingSignature() {
   window.addEventListener("scroll", requestMorph, { passive: true });
   window.addEventListener("resize", requestMorph);
   prefersReducedMotion.addEventListener("change", requestMorph);
+}
+
+async function createCompanyTargetSegments(sourceSegments, company) {
+  if (company.shape !== "excited" || !company.image) {
+    return createTargetSegments(sourceSegments, company.shape);
+  }
+
+  try {
+    const response = await fetch(company.image);
+    if (!response.ok) throw new Error(`Unable to load ${company.image}`);
+
+    const svgText = await response.text();
+    const documentSvg = new DOMParser().parseFromString(svgText, "image/svg+xml");
+    const paths = [...documentSvg.querySelectorAll("path")];
+    const targetPath = paths[company.morphPathIndex];
+    if (!targetPath) return createTargetSegments(sourceSegments, "luxe");
+
+    const targetSegments = parsePathToAbsolute(targetPath.getAttribute("d"));
+    const translate = parseTranslate(targetPath.getAttribute("transform"));
+    const translatedSegments = translateSegments(targetSegments, translate.x, translate.y);
+    return createTargetSegmentsFromPath(sourceSegments, translatedSegments);
+  } catch (error) {
+    console.warn(error);
+    return createTargetSegments(sourceSegments, "luxe");
+  }
 }
 
 function parsePathToAbsolute(d) {
@@ -320,6 +382,137 @@ function createTargetSegments(sourceSegments, shape) {
   return targetSegments;
 }
 
+function createTargetSegmentsFromPath(sourceSegments, targetSegments) {
+  const points = normalizePointsToSignature(segmentsToPoints(targetSegments));
+  if (points.length < 2) return createTargetSegments(sourceSegments, "luxe");
+
+  const targetSegmentsOut = [];
+  const drawableCount = Math.max(1, sourceSegments.filter((segment) => segment.type === "M" || segment.type === "C" || segment.type === "L").length);
+  let cursor = 0;
+  let current = samplePolyline(points, 0);
+  let subpathStart = current;
+
+  sourceSegments.forEach((segment) => {
+    if (segment.type === "M") {
+      current = samplePolyline(points, cursor / drawableCount);
+      subpathStart = current;
+      cursor += 1;
+      targetSegmentsOut.push({ type: "M", values: [current.x, current.y] });
+      return;
+    }
+
+    if (segment.type === "C") {
+      const t = cursor / drawableCount;
+      const end = samplePolyline(points, t);
+      const startTangent = polylineTangent(points, Math.max(0, t - 1 / drawableCount));
+      const endTangent = polylineTangent(points, t);
+      const distance = Math.hypot(end.x - current.x, end.y - current.y);
+      const handle = clamp(distance * 0.45, 6, 18);
+      const values = [
+        current.x + startTangent.x * handle,
+        current.y + startTangent.y * handle,
+        end.x - endTangent.x * handle,
+        end.y - endTangent.y * handle,
+        end.x,
+        end.y,
+      ];
+
+      targetSegmentsOut.push({ type: "C", values });
+      current = end;
+      cursor += 1;
+      return;
+    }
+
+    if (segment.type === "L") {
+      const end = samplePolyline(points, cursor / drawableCount);
+      targetSegmentsOut.push({ type: "L", values: [end.x, end.y] });
+      current = end;
+      cursor += 1;
+      return;
+    }
+
+    targetSegmentsOut.push({ type: "Z", values: [] });
+    current = subpathStart;
+  });
+
+  return targetSegmentsOut;
+}
+
+function segmentsToPoints(segments) {
+  return segments
+    .filter((segment) => segment.type === "M" || segment.type === "C" || segment.type === "L")
+    .map((segment) => {
+      if (segment.type === "C") {
+        return { x: segment.values[4], y: segment.values[5] };
+      }
+
+      return { x: segment.values[0], y: segment.values[1] };
+    });
+}
+
+function normalizePointsToSignature(points) {
+  if (!points.length) return points;
+
+  const bounds = points.reduce(
+    (box, point) => ({
+      minX: Math.min(box.minX, point.x),
+      minY: Math.min(box.minY, point.y),
+      maxX: Math.max(box.maxX, point.x),
+      maxY: Math.max(box.maxY, point.y),
+    }),
+    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+  );
+  const width = Math.max(1, bounds.maxX - bounds.minX);
+  const height = Math.max(1, bounds.maxY - bounds.minY);
+  const scale = Math.min(48 / width, 54 / height);
+  const center = { x: 112, y: 124 };
+
+  return points.map((point) => ({
+    x: center.x + (point.x - bounds.minX - width / 2) * scale,
+    y: center.y + (point.y - bounds.minY - height / 2) * scale,
+  }));
+}
+
+function samplePolyline(points, t) {
+  const index = wrap01(t) * points.length;
+  const start = points[Math.floor(index) % points.length];
+  const end = points[(Math.floor(index) + 1) % points.length];
+  const progress = index - Math.floor(index);
+
+  return {
+    x: start.x + (end.x - start.x) * progress,
+    y: start.y + (end.y - start.y) * progress,
+  };
+}
+
+function polylineTangent(points, t) {
+  const before = samplePolyline(points, t - 0.006);
+  const after = samplePolyline(points, t + 0.006);
+  const x = after.x - before.x;
+  const y = after.y - before.y;
+  const length = Math.hypot(x, y) || 1;
+  return { x: x / length, y: y / length };
+}
+
+function translateSegments(segments, x, y) {
+  return segments.map((segment) => {
+    if (segment.type === "Z") return segment;
+
+    return {
+      type: segment.type,
+      values: segment.values.map((value, index) => value + (index % 2 === 0 ? x : y)),
+    };
+  });
+}
+
+function parseTranslate(transform) {
+  const match = transform?.match(/translate\(([-+]?(?:\d*\.)?\d+)(?:[,\s]+([-+]?(?:\d*\.)?\d+))?\)/);
+  return {
+    x: match ? Number(match[1]) : 0,
+    y: match && match[2] ? Number(match[2]) : 0,
+  };
+}
+
 function shapePoint(shape, t) {
   const angle = t * Math.PI * 2;
   const center = { x: 112, y: 126 };
@@ -329,14 +522,6 @@ function shapePoint(shape, t) {
     return {
       x: center.x + Math.cos(angle) * radius,
       y: center.y + Math.sin(angle) * radius * 0.58,
-    };
-  }
-
-  if (shape === "nova") {
-    const radius = 44 * (0.88 + Math.cos(angle * 5) * 0.12);
-    return {
-      x: center.x + signedPower(Math.cos(angle), 0.68) * radius,
-      y: center.y + signedPower(Math.sin(angle), 0.68) * radius * 0.56,
     };
   }
 
@@ -395,6 +580,7 @@ function initVideoDialog() {
   const company = dialog.querySelector("#dialog-company");
   const title = dialog.querySelector("#dialog-title");
   const copy = dialog.querySelector("#dialog-copy");
+  const video = dialog.querySelector("#dialog-video");
   const closeButton = dialog.querySelector(".dialog-close");
 
   document.addEventListener("click", (event) => {
@@ -403,7 +589,14 @@ function initVideoDialog() {
 
     company.textContent = card.dataset.company;
     title.textContent = card.dataset.title;
-    copy.textContent = "Placeholder reel preview. Add Gavin's real video link or thumbnail to the company data when the campaign assets are ready.";
+
+    if (!card.dataset.src || !video) return;
+
+    video.hidden = false;
+    video.src = card.dataset.src;
+    video.load();
+    copy.hidden = true;
+    copy.textContent = "";
 
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
@@ -413,6 +606,11 @@ function initVideoDialog() {
   });
 
   closeButton?.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    if (!video) return;
+    video.pause();
+    video.removeAttribute("src");
+  });
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
@@ -424,10 +622,6 @@ function clamp(value, min, max) {
 
 function wrap01(value) {
   return ((value % 1) + 1) % 1;
-}
-
-function signedPower(value, power) {
-  return Math.sign(value) * Math.pow(Math.abs(value), power);
 }
 
 function easeInOutCubic(value) {

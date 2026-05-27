@@ -1,12 +1,12 @@
 :root {
-  color-scheme: dark;
-  --bg-primary: #0a0a0a;
-  --bg-surface: #141414;
-  --bg-hover: #1a1a1a;
-  --text-primary: #ffffff;
-  --text-secondary: #888888;
-  --text-muted: #444444;
-  --border: #222222;
+  color-scheme: light;
+  --bg-primary: #f7f7f4;
+  --bg-surface: #ffffff;
+  --bg-hover: #eeeeea;
+  --text-primary: #111111;
+  --text-secondary: #62625d;
+  --text-muted: #a3a39d;
+  --border: #deded8;
 }
 
 * {
@@ -16,6 +16,7 @@
 html {
   min-height: 100%;
   scroll-behavior: smooth;
+  scroll-snap-type: y mandatory;
 }
 
 body {
@@ -52,7 +53,7 @@ textarea {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 24px;
   padding: 24px clamp(22px, 5vw, 72px);
   border-bottom: 1px solid transparent;
@@ -60,7 +61,7 @@ textarea {
 }
 
 .site-header.is-scrolled {
-  background: rgba(10, 10, 10, 0.72);
+  background: rgba(247, 247, 244, 0.78);
   border-color: var(--border);
   backdrop-filter: blur(10px);
 }
@@ -80,6 +81,8 @@ textarea {
 }
 
 .brand {
+  position: absolute;
+  left: clamp(22px, 5vw, 72px);
   color: var(--text-primary);
 }
 
@@ -105,10 +108,18 @@ textarea {
   padding: 112px clamp(22px, 6vw, 96px);
 }
 
+.hero,
+.company-panel,
+.contact {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
 .hero {
   min-height: 100svh;
   display: grid;
   place-items: center;
+  padding-block: 0;
   overflow: hidden;
 }
 
@@ -145,8 +156,8 @@ textarea {
   z-index: 1;
   top: var(--signature-y, 33svh);
   left: 50%;
-  width: min(60vw, 820px);
-  min-width: min(76vw, 420px);
+  width: var(--signature-width, min(60vw, 820px));
+  min-width: var(--signature-min-width, min(76vw, 420px));
   opacity: var(--signature-opacity, 1);
   pointer-events: none;
   transform: translate(-50%, -50%);
@@ -163,7 +174,7 @@ body.is-work-scene #signature-art {
 }
 
 body.is-work-scene .hero-morph-path {
-  opacity: 0.82;
+  opacity: 1;
 }
 
 .hero .eyebrow,
@@ -217,8 +228,9 @@ body.is-work-scene .hero-morph-path {
 }
 
 .work {
-  min-height: 420svh;
+  min-height: var(--work-min-height, 100svh);
   padding-inline: 0;
+  padding-top: 0;
   padding-bottom: 0;
   overflow: clip;
 }
@@ -237,16 +249,17 @@ body.is-work-scene .hero-morph-path {
 .company-panel {
   min-height: 100svh;
   display: grid;
-  align-items: end;
+  align-items: center;
   justify-items: center;
-  padding: 0 clamp(22px, 6vw, 96px) 90px;
+  padding: 84px clamp(22px, 6vw, 96px) 30px;
 }
 
 .company-content {
   width: min(100%, 860px);
   display: grid;
   justify-items: center;
-  gap: 24px;
+  gap: 14px;
+  margin-top: -8svh;
   text-align: center;
   opacity: 0.2;
   transform: translateY(28px);
@@ -258,6 +271,12 @@ body.is-work-scene .hero-morph-path {
   transform: translateY(0);
 }
 
+.company-logo-slot {
+  width: min(16vw, 168px);
+  height: min(16svh, 120px);
+  pointer-events: none;
+}
+
 .company-name {
   margin: 0;
   font-size: clamp(2rem, 5vw, 5rem);
@@ -266,14 +285,14 @@ body.is-work-scene .hero-morph-path {
 }
 
 .video-meta {
-  margin: -10px 0 10px;
+  margin: -6px 0 14px;
   color: var(--text-secondary);
 }
 
 .video-grid {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 180px));
+  grid-template-columns: repeat(auto-fit, minmax(124px, 158px));
   justify-content: center;
   gap: 18px;
 }
@@ -282,7 +301,7 @@ body.is-work-scene .hero-morph-path {
   position: relative;
   aspect-ratio: 9 / 16;
   width: 100%;
-  min-height: 236px;
+  min-height: 220px;
   display: grid;
   align-content: end;
   justify-items: start;
@@ -301,27 +320,50 @@ body.is-work-scene .hero-morph-path {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 42%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 16px);
+    linear-gradient(180deg, rgba(17, 17, 17, 0.05), transparent 42%),
+    repeating-linear-gradient(90deg, rgba(17, 17, 17, 0.05) 0 1px, transparent 1px 16px);
   opacity: 0.32;
+}
+
+.video-card.has-video::before {
+  z-index: 1;
+  background: linear-gradient(180deg, transparent 36%, rgba(0, 0, 0, 0.82));
+  opacity: 1;
 }
 
 .video-card:hover,
 .video-card:focus-visible {
   background: var(--bg-hover);
-  border-color: #555555;
+  border-color: #8c8c86;
   transform: scale(1.03);
+}
+
+.video-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.82;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.video-card.has-video:hover .video-preview,
+.video-card.has-video:focus-visible .video-preview {
+  opacity: 1;
+  transform: scale(1.04);
 }
 
 .play-mark {
   position: absolute;
   top: 50%;
   left: 50%;
+  z-index: 2;
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  border: 1px solid rgba(17, 17, 17, 0.28);
   border-radius: 50%;
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.94);
@@ -344,7 +386,7 @@ body.is-work-scene .hero-morph-path {
 
 .video-card span:last-child {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   color: var(--text-secondary);
   font-size: 0.9rem;
 }
@@ -462,7 +504,7 @@ body.is-work-scene .hero-morph-path {
 }
 
 .video-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.74);
+  background: rgba(247, 247, 244, 0.76);
   backdrop-filter: blur(8px);
 }
 
@@ -471,6 +513,15 @@ body.is-work-scene .hero-morph-path {
   font-size: clamp(2rem, 6vw, 4rem);
   font-weight: 300;
   line-height: 1;
+}
+
+.dialog-video {
+  width: 100%;
+  max-height: min(70svh, 640px);
+  aspect-ratio: 9 / 16;
+  object-fit: contain;
+  background: #050505;
+  border: 1px solid var(--border);
 }
 
 .video-dialog p:last-child {
@@ -529,9 +580,12 @@ body.is-work-scene .hero-morph-path {
     padding-block: 88px;
   }
 
-  .signature--hero,
   .hero-inner::before {
     width: 88vw;
+  }
+
+  .signature--hero {
+    width: var(--signature-width, 88vw);
   }
 
   .hero h1 {
@@ -539,12 +593,12 @@ body.is-work-scene .hero-morph-path {
     font-size: clamp(2.1rem, 10vw, 3.4rem);
   }
 
-  .work {
-    min-height: auto;
+  .company-panel {
+    padding: 72px 20px 34px;
   }
 
-  .company-panel {
-    padding-bottom: 72px;
+  .company-content {
+    margin-top: -4svh;
   }
 
   .video-grid {
@@ -567,12 +621,13 @@ body.is-work-scene .hero-morph-path {
     display: none;
   }
 
-  .site-header {
-    justify-content: center;
-  }
-
   .company-name {
     font-size: clamp(2.4rem, 13vw, 4rem);
+  }
+
+  .company-logo-slot {
+    width: min(40vw, 150px);
+    height: min(15svh, 110px);
   }
 
   .video-grid {
@@ -591,6 +646,7 @@ body.is-work-scene .hero-morph-path {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+    scroll-snap-type: none;
   }
 
   *,
