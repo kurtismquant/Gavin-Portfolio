@@ -176,7 +176,7 @@ textarea {
   display: block;
 }
 
-.icon-close { display: none; }
+.nav-toggle .icon-close { display: none; }
 .nav-toggle[aria-expanded="true"] .icon-menu { display: none; }
 .nav-toggle[aria-expanded="true"] .icon-close { display: block; }
 
