@@ -69,9 +69,11 @@ Then open the served URL and visually verify desktop and mobile layouts.
 
 ## Contact Rules
 
-- The contact form currently only shows a placeholder success message.
-- Add Formspree, Netlify Forms, email API, or backend handling only when the deployment target is known.
-- Keep social links generic until Gavin provides real URLs.
+- The contact form posts to FormSubmit.co (AJAX endpoint: `https://formsubmit.co/ajax/gavinquant@gmail.com`).
+- **Important for Gavin:** the very first form submission triggers a confirmation email to gavinquant@gmail.com. He must click the confirmation link once. After that, all submissions arrive in his inbox automatically.
+- Social links are live: Instagram @gavin_quant, LinkedIn gavin-quant-78a993256.
+- Resume download button points to `gavin-quant-resume.pdf` at the project root. Drop the file there when ready.
+- `_next` redirect URL is not set (using AJAX delivery, no page redirect needed).
 
 ## Agent Workflow
 
