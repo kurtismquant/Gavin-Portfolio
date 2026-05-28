@@ -13,9 +13,9 @@ The current visual implementation is light/off-white with thin typography. If re
 - `index.html`: entry point, semantic sections, inline signature SVG, contact form, video dialog.
 - `css/style.css`: layout, responsive rules, fixed signature positioning, reveal states, reduced-motion rules.
 - `js/main.js`: company data, Work rendering, nav state, scroll-based custom morphing, contact placeholder, video modal.
-- `gavin-signature-animated2.svg`: standalone signature SVG; keep synced with inline SVG when signature markup changes.
-- `company1.svg`: current Work morph target artwork for Excited to Eat.
-- `video1.mp4`, `video2.mp4`, `video3.mp4`: current local Work videos.
+- `assets/images/gavin-signature-animated2.svg`: standalone signature SVG; keep synced with inline SVG when signature markup changes.
+- `assets/images/company1.svg`: current Work morph target artwork for Excited to Eat.
+- `assets/videos/video1.mp4`, `video2.mp4`, `video3.mp4`: current local Work videos.
 - `verification-*.png`: local visual QA screenshots; do not treat as app source.
 - `CLAUDE.md`: secondary agent notes.
 
@@ -25,7 +25,7 @@ The current visual implementation is light/off-white with thin typography. If re
 - Hero signature draws on load using CSS inside the inline SVG.
 - Hero copy fades in after the draw: `Stories that stop the scroll.`
 - Work is data-driven from the `companies` array in `js/main.js`.
-- Current client: `Excited to Eat`, using `company1.svg` plus three local MP4 cards.
+- Current client: `Excited to Eat`, using `assets/images/company1.svg` plus three local MP4 cards in `assets/videos/`.
 - Scroll into Work swaps from the masked signature artwork to `#morph-path`.
 - Morphing is custom JavaScript path interpolation, not GSAP/MorphSVG.
 - Contact form is a frontend placeholder; no real delivery target is connected.
@@ -56,7 +56,7 @@ Then open the served URL and visually verify desktop and mobile layouts.
 - Do not remove or rename `#path1`, `#draw-gavin`, `#draw-i-dot`, `#signature-mask`, `#signature-art`, or `#morph-path` without a clear migration plan.
 - Do not manually edit complex `d` path data unless the task explicitly requires a small targeted change.
 - Do not add white cover shapes, clipped holes, or mask hacks to hide signature crossings.
-- When changing the signature SVG, update both the inline SVG in `index.html` and `gavin-signature-animated2.svg`.
+- When changing the signature SVG, update both the inline SVG in `index.html` and `assets/images/gavin-signature-animated2.svg`.
 
 ## JavaScript Rules
 
@@ -72,7 +72,7 @@ Then open the served URL and visually verify desktop and mobile layouts.
 - The contact form posts to FormSubmit.co (AJAX endpoint: `https://formsubmit.co/ajax/gavinquant@gmail.com`).
 - **Important for Gavin:** the very first form submission triggers a confirmation email to gavinquant@gmail.com. He must click the confirmation link once. After that, all submissions arrive in his inbox automatically.
 - Social links are live: Instagram @gavin_quant, LinkedIn gavin-quant-78a993256.
-- Resume download button points to `gavin-quant-resume.pdf` at the project root. Drop the file there when ready.
+- Resume download button points to `gavin-quant-resume.pdf` at the project root (intentionally at root for simple URL). Drop the file there when ready.
 - `_next` redirect URL is not set (using AJAX delivery, no page redirect needed).
 
 ## Agent Workflow

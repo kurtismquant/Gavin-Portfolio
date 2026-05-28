@@ -2,13 +2,13 @@ const companies = [
   {
     name: "Excited to Eat",
     type: "Social Campaign",
-    logo: "company1.svg",
+    logo: "assets/images/company1.svg",
     morphPathIndex: 0,
     metric: "1k+ combined views",
     videos: [
-      { title: "Company Ad",        src: "video1.mp4" },
-      { title: "Product Ad",        src: "video2.mp4" },
-      { title: "Company Promotion", src: "video3.mp4" },
+      { title: "Company Ad",        src: "assets/videos/video1.mp4" },
+      { title: "Product Ad",        src: "assets/videos/video2.mp4" },
+      { title: "Company Promotion", src: "assets/videos/video3.mp4" },
     ],
   },
 ];
@@ -312,7 +312,7 @@ function createVideoCard(company, video, companyIndex, videoIndex) {
   button.dataset.companyIndex = companyIndex;
   button.dataset.videoIndex = videoIndex;
   button.classList.toggle("has-video", Boolean(video.src));
-  button.setAttribute("aria-label", `Open reel #${videoIndex + 1} for ${company.name}`);
+  button.setAttribute("aria-label", `${video.title} — ${company.name}`);
 
   if (video.src) {
     const preview = document.createElement("video");
@@ -897,15 +897,15 @@ function initVideoDialog() {
     if (prevButton && prevLabel) {
       prevButton.hidden = clamped <= 0;
       if (clamped > 0) {
-        prevButton.setAttribute("aria-label", `Open reel #${clamped}`);
-        prevLabel.textContent = `#${clamped}`;
+        prevButton.setAttribute("aria-label", `Go to ${reels[clamped - 1].title}`);
+        prevLabel.textContent = reels[clamped - 1].title;
       }
     }
     if (nextButton && nextLabel) {
       nextButton.hidden = clamped >= reels.length - 1;
       if (clamped < reels.length - 1) {
-        nextButton.setAttribute("aria-label", `Open reel #${clamped + 2}`);
-        nextLabel.textContent = `#${clamped + 2}`;
+        nextButton.setAttribute("aria-label", `Go to ${reels[clamped + 1].title}`);
+        nextLabel.textContent = reels[clamped + 1].title;
       }
     }
 

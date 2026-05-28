@@ -53,7 +53,7 @@ body::before {
       rgba(248, 241, 228, 0.64),
       rgba(248, 241, 228, 0.64)
     ),
-    url("../texture2.jpg"),
+    url("../assets/images/texture2.jpg"),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='paperNoise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.78' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23paperNoise)' opacity='.46'/%3E%3C/svg%3E"),
     repeating-linear-gradient(
       82deg,
@@ -611,11 +611,21 @@ body.is-work-scene .hero-morph-path {
   border-color: var(--text-primary);
 }
 
+.video-card.has-video:hover .play-mark,
+.video-card.has-video:focus-visible .play-mark {
+  border-color: rgba(255, 250, 240, 0.72);
+}
+
 .play-mark svg {
   width: 16px;
   height: 16px;
   margin-left: 2px;
   fill: var(--text-primary);
+}
+
+.video-card.has-video:hover .play-mark svg,
+.video-card.has-video:focus-visible .play-mark svg {
+  fill: #fffaf0;
 }
 
 .video-card-cta {
