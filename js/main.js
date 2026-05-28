@@ -424,7 +424,7 @@ function initSignatureScene() {
 
     document.body.classList.toggle("is-work-scene", keepWorkArtwork);
 
-    let signatureY = keepWorkArtwork ? "23svh" : "33svh";
+    let signatureY = keepWorkArtwork ? "23svh" : "32svh";
     if (keepWorkArtwork && mobileWorkViewport.matches) {
       const logoSlot = getActiveLogoSlot();
       if (logoSlot) {
@@ -437,10 +437,10 @@ function initSignatureScene() {
       "--signature-y", signatureY
     );
     document.documentElement.style.setProperty(
-      "--signature-width", keepWorkArtwork ? "min(34vw, 430px)" : "min(60vw, 820px)"
+      "--signature-width", keepWorkArtwork ? "min(34vw, 430px)" : "min(62vw, 860px)"
     );
     document.documentElement.style.setProperty(
-      "--signature-min-width", keepWorkArtwork ? "0px" : "min(76vw, 420px)"
+      "--signature-min-width", keepWorkArtwork ? "0px" : "min(78vw, 430px)"
     );
     document.documentElement.style.setProperty(
       "--signature-opacity", enteringContact ? "0" : "1"

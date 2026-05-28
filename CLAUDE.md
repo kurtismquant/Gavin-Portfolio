@@ -93,3 +93,10 @@ Then open the served URL and visually verify desktop and mobile layouts.
 - Contact placeholder still responds on submit.
 - Desktop and mobile layouts remain usable.
 - Reduced-motion users get visible content without required animation.
+
+## Screenshot Verification (REQUIRED for UI work)
+
+- After ANY frontend/UI change, use the puppeteer MCP tool to screenshot the page
+- Compare screenshot against intended design before considering the task done
+- If something looks off, fix it and screenshot again
+- Dev server runs on: http://localhost:5173

@@ -95,3 +95,6 @@ Then open the served URL and visually verify desktop and mobile layouts.
 - Contact placeholder still responds on submit.
 - Desktop and mobile layouts remain usable.
 - Reduced-motion users get visible content without required animation.
+
+## Testing
+- For local preview, use `npx serve . -l tcp://127.0.0.1:8080`; do not try `python -m http.server` unless Python availability has already been verified.
