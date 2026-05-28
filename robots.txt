@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+# TODO: add after deploy — Sitemap: https://yourdomain.com/sitemap.xml

@@ -2,14 +2,13 @@ const companies = [
   {
     name: "Excited to Eat",
     type: "Social Campaign",
-    views: "3 reels",
-    shape: "excited",
-    image: "company1.svg",
+    logo: "company1.svg",
     morphPathIndex: 0,
+    metric: null,
     videos: [
-      { title: "Video 1", src: "video1.mp4" },
-      { title: "Video 2", src: "video2.mp4" },
-      { title: "Video 3", src: "video3.mp4" },
+      { title: "Company Ad",        src: "video1.mp4" },
+      { title: "Product Ad",        src: "video2.mp4" },
+      { title: "Company Promotion", src: "video3.mp4" },
     ],
   },
 ];
@@ -26,8 +25,16 @@ function capMediaVolume(media) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  gsap.registerPlugin(ScrollTrigger, MorphSVGPlugin, DrawSVGPlugin);
-  initSignatureDrawState();
+  const hasGsap = typeof gsap !== "undefined";
+
+  if (hasGsap) {
+    gsap.registerPlugin(ScrollTrigger, MorphSVGPlugin, DrawSVGPlugin);
+    initSignatureDrawState();
+  } else {
+    document.querySelectorAll("#signature-art, #draw-gavin, #draw-i-dot").forEach(
+      (el) => { el.style.opacity = "1"; }
+    );
+  }
 
   renderCompanies();
   syncWorkLength();
@@ -38,6 +45,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initSignatureScene();
   initContactForm();
   initVideoDialog();
+
+  if (!hasGsap) return;
 
   const mm = gsap.matchMedia();
   mm.add("(prefers-reduced-motion: no-preference)", () => {
@@ -68,20 +77,36 @@ function renderCompanies() {
     const content = document.createElement("div");
     content.className = "company-content";
 
-    if (company.image) {
+    if (company.logo) {
       const logoSlot = document.createElement("div");
       logoSlot.className = "company-logo-slot";
       logoSlot.setAttribute("aria-hidden", "true");
       content.appendChild(logoSlot);
+
+      fetch(company.logo)
+        .then((r) => (r.ok ? r.text() : null))
+        .then((text) => {
+          if (!text || !logoSlot.isConnected) return;
+          const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+          const svg = doc.documentElement;
+          if (svg.tagName.toLowerCase() !== "svg") return;
+          svg.removeAttribute("width");
+          svg.removeAttribute("height");
+          svg.setAttribute("aria-hidden", "true");
+          logoSlot.appendChild(svg);
+        })
+        .catch(() => {});
     }
 
-    const title = document.createElement("h3");
+    const title = document.createElement("h2");
     title.className = "company-name";
     title.textContent = company.name;
 
     const meta = document.createElement("p");
     meta.className = "video-meta";
-    meta.textContent = `${company.type} · ${company.views}`;
+    meta.textContent = company.metric
+      ? `${company.type} · ${company.metric}`
+      : company.type;
 
     const grid = document.createElement("div");
     grid.className = "video-grid";
@@ -311,7 +336,7 @@ function createVideoCard(company, video, companyIndex, videoIndex) {
     preview.muted = true;
     preview.loop = true;
     preview.playsInline = true;
-    preview.preload = "metadata";
+    preview.preload = "none";
     preview.setAttribute("aria-hidden", "true");
 
     button.addEventListener("mouseenter", () => {
@@ -359,6 +384,7 @@ function initActiveNav() {
     links.forEach((l) => l.classList.toggle("is-active", l.getAttribute("href") === id));
 
   setActive("#about");
+  if (typeof ScrollTrigger === "undefined") return;
   sections.forEach((id) => {
     ScrollTrigger.create({
       trigger: id,
@@ -449,7 +475,11 @@ function initSignatureScene() {
 
   update();
   window.addEventListener("scroll", update, { passive: true });
-  window.addEventListener("resize", update);
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(update, 100);
+  });
   mobileWorkViewport.addEventListener("change", update);
 }
 
@@ -491,11 +521,17 @@ async function initMorphScrollTriggers() {
 
   const targetDByCompany = await Promise.all(
     companies.map(async (c) => {
-      const res = await fetch(c.image);
-      const text = await res.text();
-      const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-      const path = doc.querySelectorAll("path")[c.morphPathIndex ?? 0];
-      return normalizeExternalSvgPath(doc.documentElement, path);
+      try {
+        const res = await fetch(c.logo);
+        if (!res.ok) throw new Error(`${res.status} ${c.logo}`);
+        const text = await res.text();
+        const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+        const path = doc.querySelectorAll("path")[c.morphPathIndex ?? 0];
+        return normalizeExternalSvgPath(doc.documentElement, path);
+      } catch (err) {
+        console.warn("Morph target failed to load:", err);
+        return "";
+      }
     })
   );
 
@@ -622,12 +658,86 @@ function transformPathData(d, transformX, transformY) {
 function initContactForm() {
   const form = document.querySelector("#contact-form");
   const status = document.querySelector("#form-status");
+  const submitBtn = form?.querySelector("button[type='submit']");
   if (!form || !status) return;
 
-  form.addEventListener("submit", (event) => {
+  const controls = [...form.querySelectorAll("input[required], textarea[required]")];
+
+  const errorMessages = {
+    name:    { valueMissing: "Please enter your name." },
+    email:   { valueMissing: "Please enter your email address.", typeMismatch: "Please enter a valid email address." },
+    message: { valueMissing: "Please enter a message." },
+  };
+
+  const getErrorText = (input) => {
+    const m = errorMessages[input.name] || {};
+    if (input.validity.valueMissing)  return m.valueMissing  || "This field is required.";
+    if (input.validity.typeMismatch)  return m.typeMismatch  || "Please enter a valid value.";
+    return "";
+  };
+
+  const setError = (input, message) => {
+    input.setAttribute("aria-invalid", "true");
+    const el = input.parentElement?.querySelector(".field-error");
+    if (el) el.textContent = message;
+  };
+
+  const clearError = (input) => {
+    input.removeAttribute("aria-invalid");
+    const el = input.parentElement?.querySelector(".field-error");
+    if (el) el.textContent = "";
+  };
+
+  controls.forEach((input) => {
+    input.addEventListener("input", () => { if (input.validity.valid) clearError(input); });
+    input.addEventListener("blur", () => {
+      if (!input.validity.valid && input.value.trim()) setError(input, getErrorText(input));
+    });
+  });
+
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    status.textContent = "Thanks. Gavin can connect this form once the delivery target is set.";
-    form.reset();
+
+    let firstInvalid = null;
+    controls.forEach((input) => {
+      if (!input.validity.valid) {
+        setError(input, getErrorText(input));
+        if (!firstInvalid) firstInvalid = input;
+      } else {
+        clearError(input);
+      }
+    });
+
+    if (firstInvalid) { firstInvalid.focus(); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+    status.textContent = "";
+
+    const data = new FormData(form);
+    data.append("_subject", "New portfolio inquiry — Gavin Quant");
+    data.append("_captcha", "false");
+    data.append("_template", "table");
+
+    try {
+      const res = await fetch("https://formsubmit.co/ajax/gavinquant@gmail.com", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        body: data,
+      });
+      if (res.ok) {
+        status.textContent = "Thanks — I'll be in touch soon.";
+        form.reset();
+        controls.forEach(clearError);
+      } else {
+        status.textContent = "Something went wrong. Please email gavinquant@gmail.com directly.";
+      }
+    } catch {
+      status.textContent = "Could not send — please email gavinquant@gmail.com directly.";
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Send message";
+    }
   });
 }
 
@@ -662,8 +772,12 @@ function initVideoDialog() {
 
     activeVideoIndex = videoIndex;
     company.textContent = activeCompany.name;
-    title.textContent = `#${activeVideoIndex + 1}`;
-    if (meta) meta.textContent = `${activeCompany.type} · ${activeCompany.views}`;
+    title.textContent = reel.title;
+    if (meta) {
+      meta.textContent = activeCompany.metric
+        ? `${activeCompany.type} · ${activeCompany.metric}`
+        : activeCompany.type;
+    }
     if (count) count.textContent = `${activeVideoIndex + 1} / ${reels.length}`;
 
     const previousIndex = activeVideoIndex - 1;
