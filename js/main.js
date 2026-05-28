@@ -4,7 +4,7 @@ const companies = [
     type: "Social Campaign",
     logo: "company1.svg",
     morphPathIndex: 0,
-    metric: null,
+    metric: "1k+ combined views",
     videos: [
       { title: "Company Ad",        src: "video1.mp4" },
       { title: "Product Ad",        src: "video2.mp4" },
@@ -321,7 +321,7 @@ function createVideoCard(company, video, companyIndex, videoIndex) {
     preview.muted = true;
     preview.loop = true;
     preview.playsInline = true;
-    preview.preload = "none";
+    preview.preload = "metadata";
     preview.setAttribute("aria-hidden", "true");
 
     button.addEventListener("mouseenter", () => {
@@ -790,73 +790,211 @@ function initVideoDialog() {
   const dialog = document.querySelector("#video-dialog");
   if (!dialog) return;
 
-  const company = dialog.querySelector("#dialog-company");
-  const title = dialog.querySelector("#dialog-title");
-  const meta = dialog.querySelector("#dialog-meta");
-  const count = dialog.querySelector("#dialog-count");
+  const companyEl = dialog.querySelector("#dialog-company");
+  const titleEl = dialog.querySelector("#dialog-title");
+  const metaEl = dialog.querySelector("#dialog-meta");
+  const countEl = dialog.querySelector("#dialog-count");
   const prevButton = dialog.querySelector("#dialog-prev");
   const nextButton = dialog.querySelector("#dialog-next");
   const prevLabel = dialog.querySelector("#dialog-prev-label");
   const nextLabel = dialog.querySelector("#dialog-next-label");
-  const copy = dialog.querySelector("#dialog-copy");
-  const video = dialog.querySelector("#dialog-video");
   const closeButton = dialog.querySelector(".dialog-close");
+  const track = dialog.querySelector("#dialog-reel-track");
+  const dotsContainer = dialog.querySelector("#dialog-dots");
+
   let activeCompanyIndex = 0;
   let activeVideoIndex = 0;
+  let activeReels = [];
 
-  capMediaVolume(video);
+  // Touch swipe state
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let touchBaseTranslate = 0;
+  let isDragging = false;
 
-  const getActiveVideos = () =>
-    (companies[activeCompanyIndex]?.videos || []).filter((reel) => reel.src);
+  const isMobile = () => window.matchMedia("(max-width: 760px)").matches;
 
-  const loadReel = (videoIndex) => {
-    const activeCompany = companies[activeCompanyIndex];
-    const reels = getActiveVideos();
-    const reel = reels[videoIndex];
-    if (!activeCompany || !reel || !video) return;
+  function buildSlides(company) {
+    track.innerHTML = "";
+    activeReels = (company.videos || []).filter((r) => r.src);
 
-    activeVideoIndex = videoIndex;
-    company.textContent = activeCompany.name;
-    title.textContent = reel.title;
-    if (meta) {
-      meta.textContent = activeCompany.metric
-        ? `${activeCompany.type} · ${activeCompany.metric}`
-        : activeCompany.type;
+    activeReels.forEach((reel) => {
+      const slide = document.createElement("div");
+      slide.className = "dialog-reel-slide";
+
+      const video = document.createElement("video");
+      video.className = "dialog-video";
+      video.controls = true;
+      video.playsInline = true;
+      video.preload = "metadata";
+      video.setAttribute("aria-label", reel.title);
+      capMediaVolume(video);
+
+      slide.appendChild(video);
+      track.appendChild(slide);
+    });
+  }
+
+  function buildDots(count) {
+    dotsContainer.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dialog-dot";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("aria-label", `Reel ${i + 1}`);
+      btn.setAttribute("aria-selected", "false");
+      btn.addEventListener("click", () => goToSlide(i));
+      dotsContainer.appendChild(btn);
     }
-    if (count) count.textContent = `${activeVideoIndex + 1} / ${reels.length}`;
+  }
 
-    const previousIndex = activeVideoIndex - 1;
-    const nextIndex = activeVideoIndex + 1;
+  function goToSlide(index, { animate = true } = {}) {
+    const reels = activeReels;
+    if (!reels.length) return;
+
+    const clamped = Math.max(0, Math.min(reels.length - 1, index));
+    activeVideoIndex = clamped;
+
+    // Lazy-load src for current slide and its immediate neighbors
+    const slides = track.querySelectorAll(".dialog-reel-slide");
+    slides.forEach((slide, i) => {
+      const video = slide.querySelector("video");
+      if (!video) return;
+
+      if (Math.abs(i - clamped) <= 1 && !video.src) {
+        video.src = reels[i].src;
+        video.preload = i === clamped ? "auto" : "metadata";
+        video.load();
+      }
+
+      if (i !== clamped) video.pause();
+    });
+
+    // Play active video
+    const activeVideo = slides[clamped]?.querySelector("video");
+    if (activeVideo) {
+      activeVideo.volume = MEDIA_VOLUME_SCALE;
+      activeVideo.play().catch(() => {});
+    }
+
+    // Slide track to new position
+    if (animate) {
+      track.classList.add("is-animating");
+    } else {
+      track.classList.remove("is-animating");
+    }
+    track.style.transform = `translateX(${-clamped * 100}%)`;
+
+    // Update heading title
+    if (titleEl) titleEl.textContent = reels[clamped].title;
+
+    // Update count
+    if (countEl) countEl.textContent = `${clamped + 1} / ${reels.length}`;
+
+    // Update prev/next buttons
     if (prevButton && prevLabel) {
-      prevButton.hidden = previousIndex < 0;
-      if (previousIndex >= 0) {
-        prevButton.setAttribute("aria-label", `Open reel #${previousIndex + 1}`);
-        prevLabel.textContent = `#${previousIndex + 1}`;
+      prevButton.hidden = clamped <= 0;
+      if (clamped > 0) {
+        prevButton.setAttribute("aria-label", `Open reel #${clamped}`);
+        prevLabel.textContent = `#${clamped}`;
       }
     }
     if (nextButton && nextLabel) {
-      nextButton.hidden = nextIndex >= reels.length;
-      if (nextIndex < reels.length) {
-        nextButton.setAttribute("aria-label", `Open reel #${nextIndex + 1}`);
-        nextLabel.textContent = `#${nextIndex + 1}`;
+      nextButton.hidden = clamped >= reels.length - 1;
+      if (clamped < reels.length - 1) {
+        nextButton.setAttribute("aria-label", `Open reel #${clamped + 2}`);
+        nextLabel.textContent = `#${clamped + 2}`;
       }
     }
 
-    video.hidden = false;
-    video.src = reel.src;
-    video.volume = MEDIA_VOLUME_SCALE;
-    video.load();
-    video.play().catch(() => {});
-    copy.hidden = true;
-    copy.textContent = "";
-  };
+    // Update dots
+    dotsContainer.querySelectorAll(".dialog-dot").forEach((dot, i) => {
+      const active = i === clamped;
+      dot.setAttribute("aria-selected", active ? "true" : "false");
+      dot.classList.toggle("is-active", active);
+    });
+  }
 
+  // Horizontal swipe — mobile only
+  track.addEventListener("touchstart", (e) => {
+    const touch = e.changedTouches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = performance.now();
+    touchBaseTranslate = -activeVideoIndex * track.offsetWidth;
+    isDragging = false;
+    track.classList.remove("is-animating");
+  }, { passive: true });
+
+  track.addEventListener("touchmove", (e) => {
+    if (!isMobile()) return;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+
+    if (!isDragging) {
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) isDragging = true;
+      else return;
+    }
+
+    e.preventDefault();
+
+    // Edge resistance at first/last slide
+    const reels = activeReels;
+    let appliedDx = dx;
+    if ((activeVideoIndex === 0 && dx > 0) || (activeVideoIndex === reels.length - 1 && dx < 0)) {
+      appliedDx = dx * 0.28;
+    }
+
+    track.style.transform = `translateX(${touchBaseTranslate + appliedDx}px)`;
+  }, { passive: false });
+
+  track.addEventListener("touchend", (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - touchStartX;
+    const dt = performance.now() - touchStartTime;
+    const velocity = Math.abs(dx) / Math.max(dt, 1);
+    const reels = activeReels;
+
+    if ((Math.abs(dx) > 60 || velocity > 0.4) && reels.length > 1) {
+      if (dx < 0 && activeVideoIndex < reels.length - 1) {
+        goToSlide(activeVideoIndex + 1);
+        return;
+      }
+      if (dx > 0 && activeVideoIndex > 0) {
+        goToSlide(activeVideoIndex - 1);
+        return;
+      }
+    }
+
+    // Snap back to current
+    goToSlide(activeVideoIndex);
+  }, { passive: true });
+
+  // Card click opens dialog
   document.addEventListener("click", (event) => {
     const card = event.target.closest(".video-card");
     if (!card) return;
 
     activeCompanyIndex = Number(card.dataset.companyIndex || 0);
-    loadReel(Number(card.dataset.videoIndex || 0));
+    const company = companies[activeCompanyIndex];
+    if (!company) return;
+
+    if (companyEl) companyEl.textContent = company.name;
+    if (metaEl) {
+      metaEl.textContent = company.metric
+        ? `${company.type} · ${company.metric}`
+        : company.type;
+    }
+
+    buildSlides(company);
+    buildDots(activeReels.length);
+    goToSlide(Number(card.dataset.videoIndex || 0), { animate: false });
 
     if (typeof dialog.showModal === "function") {
       dialog.showModal();
@@ -865,18 +1003,21 @@ function initVideoDialog() {
     }
   });
 
-  prevButton?.addEventListener("click", () => loadReel(Math.max(0, activeVideoIndex - 1)));
-  nextButton?.addEventListener("click", () => {
-    const reels = getActiveVideos();
-    loadReel(Math.min(reels.length - 1, activeVideoIndex + 1));
-  });
+  prevButton?.addEventListener("click", () => goToSlide(activeVideoIndex - 1));
+  nextButton?.addEventListener("click", () => goToSlide(activeVideoIndex + 1));
 
   closeButton?.addEventListener("click", () => dialog.close());
+
   dialog.addEventListener("close", () => {
-    if (!video) return;
-    video.pause();
-    video.removeAttribute("src");
+    track.querySelectorAll("video").forEach((v) => {
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+    });
+    track.innerHTML = "";
+    dotsContainer.innerHTML = "";
   });
+
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) dialog.close();
   });
